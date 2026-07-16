@@ -420,3 +420,144 @@ If a future environment needs fully automated deployment from public `main`,
 revisit this decision with protected GitHub environments, exact OIDC subject
 conditions, permission-bounded CDK bootstrap roles, and a dedicated sandbox AWS
 account.
+
+---
+
+## ADR 016: Span The Demo VPC Across Two AZs But Place Workloads In One
+
+Status: accepted.
+
+### Decision
+
+Create public and private isolated subnet groups across two Availability Zones
+for `GoldenPathDemoStack`. Attach the internet-facing Application Load Balancer
+to both public subnets, but place the Wave 2 Fargate service, S3 gateway endpoint
+route, and interface endpoint ENIs in one explicitly selected workload subnet.
+Explicitly keep ALB cross-zone load balancing enabled so both ALB nodes can
+route to the single healthy workload target.
+
+Keep `vpcMaxAzs: 2` and `workloadAzCount: 1` as fixed `PlatformConfig` literals.
+Do not expose either value through caller-controlled CDK context.
+
+### Reason
+
+An internet-facing ALB needs subnets in at least two Availability Zones, as
+documented in the
+[Elastic Load Balancing guide](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-application-load-balancer.html).
+The demo does not yet need workload high availability, and interface endpoints
+are billed for every Availability Zone in which an endpoint remains
+provisioned.
+
+[AWS documents](https://docs.aws.amazon.com/elasticloadbalancing/latest/userguide/how-elastic-load-balancing-works.html)
+that an ALB can route to healthy targets in another enabled AZ when an AZ has no
+healthy targets and cross-zone load balancing is enabled. The Wave 2 stack
+makes that setting explicit because the one-AZ workload compromise depends on
+it.
+
+This split gives the ALB the AWS-required network shape while avoiding a second
+paid endpoint set for a single disposable task. The second private isolated
+subnet remains unused in Wave 2 and therefore does not receive another endpoint
+ENI.
+
+### Tradeoff
+
+The application is not highly available. An outage in the selected workload
+Availability Zone stops the only task and its endpoint access even though the
+ALB spans two zones.
+
+For a production-shaped environment, increase workload placement and endpoint
+coverage to at least two Availability Zones, run at least two tasks, and review
+database and migration availability separately. That future change should be a
+deliberate platform configuration or stack variant rather than a command-line
+override of the learning demo.
+
+---
+
+## ADR 017: Use Explicit VPC Endpoints Instead Of NAT For The First ECS Slice
+
+Status: accepted with a Wave 4 cost checkpoint.
+
+### Decision
+
+Run Fargate tasks without public IP addresses or a NAT Gateway. Add only the VPC
+endpoints needed by the current workload:
+
+- S3 gateway endpoint for ECR image layers;
+- ECR API interface endpoint;
+- ECR Docker interface endpoint;
+- CloudWatch Logs interface endpoint;
+- SSM Messages interface endpoint only when ECS Exec is enabled.
+
+Pin interface endpoints to the single selected workload subnet. Before Wave 4
+adds endpoints for X-Ray, AMP, STS, or other services, compare the complete
+region-specific endpoint cost and operational complexity with a NAT-based
+design.
+
+### Reason
+
+The user explicitly wants private tasks and a cheap, disposable learning
+environment without a continuously billed NAT Gateway. Explicit endpoints also
+make every required private AWS service path visible in CDK and testable in the
+synthesized CloudFormation template.
+
+### Tradeoff
+
+No-NAT networking creates an endpoint inventory that can fail in less obvious
+ways: a missing endpoint can prevent image pulls, log delivery, ECS Exec, trace
+export, or metrics export. [AWS PrivateLink pricing](https://aws.amazon.com/privatelink/pricing/)
+charges interface endpoints per provisioned Availability Zone plus data
+processing, so enough endpoints can cost more than a NAT Gateway.
+
+The no-NAT pattern is therefore not an unconditional production standard. If
+the service later needs broad outbound internet access or many regional AWS
+APIs, revisit NAT, centralized egress, or a different network topology. Any
+change must preserve private task placement, explicit egress review, teardown
+instructions, and cost visibility.
+
+---
+
+## ADR 018: Name The ECS Cluster For The Platform And Environment
+
+Status: accepted.
+
+### Decision
+
+Use `movie-reservation-platform` as the fixed platform identity in
+`PlatformConfig`. Name the CDK cluster construct `ApplicationCluster` and the
+deployed ECS cluster `movie-reservation-platform-aws-demo`.
+
+Keep service-owned names scoped to `movie-reservation-service`, including the
+ECS service, task-definition family, container name, and CloudWatch log groups.
+Keep the private subnet group named `workload` because it describes a placement
+role shared by task and endpoint ENIs rather than one service.
+
+Apply `Project`, `Platform`, and `Environment` tags across the stack. Apply the
+`Service` tag only to service-owned compute, ingress, and logging resources so
+the shared VPC, endpoints, and application cluster do not claim ownership by
+the first deployed service.
+
+Do not expose `platformName` through caller-controlled CDK context.
+
+### Reason
+
+The first slice deploys one ECS service, but the platform plan can later add
+independently deployed agent, recommendation, or other application services.
+Naming the cluster after the first service would incorrectly imply that the
+cluster belongs exclusively to that service. Platform-and-environment naming
+matches the cluster's intended scheduling and ownership boundary while keeping
+service-level resource ownership visible.
+
+This change is being made before the first AWS deployment, when changing the
+construct and explicit physical cluster names does not require replacing a
+deployed cluster.
+
+### Tradeoff
+
+The current stack contains only one ECS service, so the platform-scoped cluster
+name is broader than the Wave 2 runtime graph. That small amount of deliberate
+forward naming is justified by the already planned platform expansion; it does
+not require extracting shared constructs or deploying additional services now.
+
+If future services require different trust boundaries, capacity strategies, or
+independent cluster lifecycles, create additional explicitly named clusters
+rather than treating this cluster as universally shared.

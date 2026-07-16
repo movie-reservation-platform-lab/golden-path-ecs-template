@@ -82,9 +82,12 @@ GitHub runners and do not ship full GitHub job logs into AWS.
 
 - Root `package.json` is an npm workspace repo with `movie-reservation-service`,
   `ecs-infra`, and `movie-reservation-web`.
-- `ecs-infra/lib/infra-stack.ts` is still the generated blank CDK starter
-  stack. There is not yet a VPC, cluster, ALB, Fargate service, AMP workspace,
-  or AMG workspace.
+- Wave 1 failure injection is implemented with a stable hash/salt policy,
+  disabled default, `unexpected-error`, and bounded diagnostic exception type.
+- The Wave 2 branch replaces the generated blank CDK starter with an explicit
+  backend stack containing a VPC, ALB, Fargate service, app image asset, log
+  group, and the minimum no-NAT endpoints. Postgres, ADOT, AMP, and AMG remain
+  later waves.
 - `ecs-infra/package.json` already has `aws-cdk-lib`, `constructs`, Jest,
   TypeScript, and scripts for `build`, `test`, `cdk`, and `ci`.
 - `movie-reservation-service/Dockerfile` already builds the compiled NestJS
@@ -306,7 +309,10 @@ Use Option C for the first AWS stack:
 - ALB in public subnets.
 - ECS tasks in private subnets.
 - No NAT Gateway.
-- One Availability Zone for the demo default: `maxAzs: 1`.
+- The VPC and public ALB subnets span two Availability Zones.
+- The single demo task and interface endpoint ENIs are pinned to one selected
+  workload subnet to avoid paying for duplicate endpoint coverage before HA is
+  required.
 - Required AWS service traffic goes through VPC gateway/interface endpoints.
 - The database is a Postgres sidecar in the same task, not RDS.
 - The ALB must be source-IP restricted with an explicit `allowedIngressCidr`
@@ -350,7 +356,9 @@ This maps to CDK and CloudFormation as follows:
 Use fixed, readable names for the learning stack:
 
 - Stack: `GoldenPathDemoStack`.
+- Platform name: `movie-reservation-platform`.
 - Environment name: `aws-demo`.
+- ECS application cluster: `movie-reservation-platform-aws-demo`.
 - Service name: `movie-reservation-service`.
 - CloudWatch log groups:
   - `/golden-path/aws-demo/movie-reservation-service/app`
@@ -460,7 +468,9 @@ Use separate task execution and task roles:
     permissions scoped to the AMP workspace for remote write.
   - `ssm:GetParameters` only if the collector config or app config is read from
     SSM.
-  - ECS Exec permissions only when `enableEcsExec=true`.
+  - ECS Exec `ssmmessages` channel permissions only when
+    `enableEcsExec=true`; these actions require `Resource: "*"` because they do
+    not support resource-scoped ARNs.
 
 Prefer explicit inline IAM policies in CDK for learning, then factor them into
 helpers after the permissions stabilize.
@@ -471,16 +481,19 @@ For the first learning/demo stack:
 
 - Use a VPC with public subnets for the ALB and private subnets for Fargate
   tasks.
-- Configure `maxAzs: 1` for the demo default.
+- Configure `vpcMaxAzs: 2` and `workloadAzCount: 1` as fixed internal values,
+  not caller-controlled CDK context.
 - Do not create a NAT Gateway in the recommended path.
 - Allow inbound traffic from the ALB security group to the app container port
   only.
-- Allow inbound ALB traffic only from the configured demo source CIDR if that
-  CIDR is known at deploy time.
+- Allow inbound ALB traffic only from the required configured demo source CIDR.
+  Reject the internet-wide `0.0.0.0/0` value at the config boundary.
 - Do not allow inbound traffic to collector ports from outside the task.
 - Allow outbound HTTPS from tasks only to the endpoint security group and
   required AWS service endpoints where practical.
 - Add an S3 gateway endpoint for ECR image layer downloads.
+- Attach the S3 endpoint route and every interface endpoint ENI only to the
+  selected workload subnet in the first demo.
 - Add interface endpoints for:
   - `ecr.api`;
   - `ecr.dkr`;
@@ -494,6 +507,9 @@ For the first learning/demo stack:
 - Attach endpoint security groups that allow inbound `443` only from the task
   security group.
 - Add endpoint policies where useful, especially for ECR and CloudWatch Logs.
+- Before Wave 4 adds X-Ray, AMP, or STS endpoints, compare the complete
+  region-specific endpoint cost with NAT and document the selected continuation
+  path.
 
 ### CDK Configuration
 
@@ -501,20 +517,30 @@ Use a small typed config boundary rather than scattering raw context lookups:
 
 ```ts
 export interface PlatformConfig {
+  readonly platformName: 'movie-reservation-platform';
   readonly serviceName: 'movie-reservation-service';
   readonly environmentName: 'aws-demo';
   readonly allowedIngressCidr: string;
-  readonly maxAzs: 1;
+  readonly vpcMaxAzs: 2;
+  readonly workloadAzCount: 1;
   readonly enableEcsExec: boolean;
 }
 ```
 
 Config rules:
 
+- `platformName` is fixed at `movie-reservation-platform`. It names shared
+  platform-level resources such as the ECS application cluster and is not
+  caller-controlled CDK context.
 - `allowedIngressCidr` is required for real deploys. The CDK test suite can use
   a documentation CIDR such as `203.0.113.10/32`.
-- `maxAzs` defaults to `1` for the demo and should be documented as `2+` for
-  production-shaped deployments.
+- Reject `allowedIngressCidr=0.0.0.0/0`; the backend-only demo must use an
+  explicit restricted source range.
+- `vpcMaxAzs` is fixed at `2` so the internet-facing ALB can attach to two
+  public subnets.
+- `workloadAzCount` is fixed at `1` so the disposable task and paid interface
+  endpoint ENIs remain in one Availability Zone. Production-shaped deployment
+  should use at least two workload AZs and two desired tasks.
 - `enableEcsExec` is explicit. When false, do not create the `ssmmessages`
   endpoint or ECS Exec permissions.
 - Do not add broad configuration knobs before there is a real use case.
@@ -941,7 +967,8 @@ typed config object for deployment decisions:
 - environment name: `aws-demo`;
 - stack name: `GoldenPathDemoStack`;
 - required `allowedIngressCidr`;
-- `maxAzs: 1`;
+- fixed `vpcMaxAzs: 2`;
+- fixed `workloadAzCount: 1`;
 - `enableEcsExec`;
 - log retention;
 - optional toggles for AMG/AMP only if implementation sequencing requires them.
@@ -1007,8 +1034,9 @@ The sidecar database still needs schema/seed initialization:
   API tasks.
 - Set log retention explicitly.
 - Use desired count 1 for the first demo, then 2 for production-shaped HA.
-- Use `maxAzs: 1` for the first demo, then `maxAzs >= 2` for
-  production-shaped networking.
+- Span the VPC across two AZs for the ALB, but use one workload AZ for the first
+  demo. Production-shaped networking should use at least two workload AZs,
+  endpoint coverage in both, and at least two tasks.
 - If using RDS later, add true one-off migration tasks and database connection
   pool limits before scaling ECS tasks.
 - Private subnets without NAT require AWS service VPC endpoints. Missing
@@ -1056,24 +1084,44 @@ small group of PRs unless the actual diff is tiny.
 - Files/modules likely affected:
   - `ecs-infra/lib/infra-stack.ts`
   - `ecs-infra/lib/config/platform-config.ts`
+  - `ecs-infra/lib/assets/docker-build-context.ts`
   - `ecs-infra/bin/infra.ts`
   - `ecs-infra/test/infra.test.ts`
+  - `ecs-infra/README.md`
+  - `movie-reservation-service/Dockerfile`
+  - `movie-reservation-service/Dockerfile.dockerignore`
+  - root `package.json` and `package-lock.json` for workspace dependency
+    ownership
+  - `docs/architecture/ecs-fargate-deployment.md`
+  - `docs/architecture/architecture-decisions.md`
 - Notes:
   - Keep resources mostly explicit in `infra-stack.ts`.
-  - Add typed config with required `allowedIngressCidr`, `maxAzs: 1`, and
-    `enableEcsExec`.
+  - Add typed config with required restricted `allowedIngressCidr`, fixed
+    `vpcMaxAzs: 2`, fixed `workloadAzCount: 1`, and `enableEcsExec`.
   - Create public ALB, private ECS tasks, no NAT Gateway, app image asset,
     service log group, and minimum VPC endpoints for image pull/log delivery.
+  - Pin the task and endpoint ENIs to one selected workload subnet.
+  - Explicitly enable ALB cross-zone routing because the ALB spans two AZs
+    while the Wave 2 target exists in one workload AZ.
+  - When ECS Exec is enabled, add the `ssmmessages` endpoint and task-role
+    message-channel permissions.
+  - Keep CDK dependencies owned only by the `ecs-infra` workspace.
+  - Keep the service Docker build context at repository root for the shared
+    lockfile, but use a Dockerfile-specific allowlist so sibling workspaces and
+    CDK dependencies cannot enter the runtime image.
   - Defer reusable constructs until after first successful deploy.
 - Verification:
   - `npm -w ecs-infra run build`
   - `npm -w ecs-infra test`
   - `npm -w ecs-infra run cdk -- synth -c allowedIngressCidr=203.0.113.10/32`
+  - clean service Docker build and `/health` runtime probe
+  - verify `aws-cdk-lib` and `constructs` are absent from the runtime image
 
 ### Wave 3: Sidecars, Startup Order, And Debugging
 
 - Change: Add Postgres sidecar, migration/seed container, ECS container
-  dependencies, split log groups, and ECS Exec support behind the config flag.
+  dependencies, split log groups, and ECS Exec debugging instructions for the
+  sidecar task.
 - Files/modules likely affected:
   - `ecs-infra/lib/infra-stack.ts`
   - `ecs-infra/lib/config/platform-config.ts`
@@ -1086,8 +1134,8 @@ small group of PRs unless the actual diff is tiny.
     before the app starts.
   - Add a CDK code comment explaining why this is not a separate one-off ECS
     task until RDS exists.
-  - When `enableEcsExec=true`, add ECS Exec permissions and the `ssmmessages`
-    endpoint.
+  - Reuse the Wave 2 `enableEcsExec` service flag, task-role permissions, and
+    `ssmmessages` endpoint when debugging sidecar containers.
 - Verification:
   - CDK assertions for Postgres, migration, app, ADOT placeholder/log groups,
     container dependencies, ECS Exec flag behavior, and absence of NAT Gateway.
@@ -1214,12 +1262,16 @@ small group of PRs unless the actual diff is tiny.
   - app, Postgres, migration, and ADOT containers use split `awslogs` log
     groups.
 - Assert no NAT Gateway resources are created in the recommended stack.
-- Assert `maxAzs: 1` behavior in the demo config.
+- Assert four VPC subnets are created across two AZs, the ALB uses two public
+  subnets, and the ECS service plus interface endpoints use one workload
+  subnet.
+- Assert ALB cross-zone load balancing is enabled.
 - Assert S3 gateway endpoint and required interface endpoints exist for the
   no-NAT private task path.
 - Assert ALB target health check path is `/health`.
 - Assert ALB ingress requires explicit source-CIDR restriction.
-- Assert ECS Exec resources are controlled by `enableEcsExec`.
+- Assert the ECS Exec service flag, `ssmmessages` endpoint, and task-role
+  message-channel permissions are controlled by `enableEcsExec`.
 - Assert task role contains X-Ray, CloudWatch metrics/logs, and AMP remote write
   permissions.
 - Assert AMP workspace exists.
@@ -1326,7 +1378,7 @@ Rollback:
 | ADOT config works locally but not on ECS | High | Medium | Use official ECS ADOT patterns, add sidecar logs, deploy a minimal config first, then add exporters incrementally. |
 | Metrics appear in CloudWatch but not AMP | Medium | Medium | Separate CloudWatch and AMP pipelines; verify SigV4 auth, AMP endpoint, task role permissions, and Region. |
 | Missing VPC endpoint breaks private tasks | High | Medium | Add endpoint assertions, deploy incrementally, and check image pull/log/X-Ray/AMP paths separately. |
-| VPC endpoints cost as much as NAT if overused | Medium | Medium | Keep endpoint list explicit, use one AZ for the demo if acceptable, and destroy the stack when idle. |
+| VPC endpoints cost as much as NAT if overused | Medium | Medium | Keep endpoint list explicit, pin paid endpoint ENIs to one workload AZ, perform a cost checkpoint before Wave 4 expands the endpoint inventory, and destroy the stack when idle. |
 | Metric cardinality grows too high | High | Low | Keep ids out of labels; review every new metric attribute. |
 | CI metrics create high-cardinality CloudWatch costs | Medium | Medium | Keep run id, SHA, PR number, trace id, request id, and correlation id out of dimensions; put them in logs/summaries only. |
 | GitHub OIDC role is too broad | High | Medium | Separate CI observability and deploy roles; restrict trust policy and IAM actions; do not allow fork PRs to assume roles. |
@@ -1350,9 +1402,10 @@ Rollback:
 - Migration/seed container runs in the same task and app startup depends on its
   successful completion.
 - Recommended CDK stack creates no NAT Gateway resources.
-- Recommended CDK stack uses `maxAzs: 1` for the demo default.
+- Recommended CDK stack uses a fixed two-AZ VPC and one-AZ workload/endpoint
+  placement for the demo default.
 - Required VPC endpoints are present for private task operation without NAT.
-- ALB ingress requires explicit `allowedIngressCidr`.
+- ALB ingress requires explicit `allowedIngressCidr` and rejects `0.0.0.0/0`.
 - ALB `/health` check passes against the deployed service.
 - Service emits JSON logs to CloudWatch Logs.
 - Service traces arrive in X-Ray.
@@ -1389,6 +1442,8 @@ Rollback:
 - [ ] Implementation steps are ordered and concrete
 - [ ] AWS service assumptions are documented
 - [ ] No-NAT VPC endpoint assumptions are documented
+- [ ] Two-AZ VPC and one-AZ workload compromise is documented in an ADR
+- [ ] Endpoint-versus-NAT cost checkpoint is documented in an ADR
 - [ ] Sidecar migration versus future RDS migration-task behavior is documented
 - [ ] CI observability dimensions avoid high-cardinality values
 - [ ] Demo-only behavior is isolated from production defaults
@@ -1421,7 +1476,7 @@ Constraints:
 - Use a Postgres sidecar for demo persistence; do not add RDS in the first slice.
 - Use a migration/seed container in the same ECS task for sidecar Postgres; true one-off ECS migration tasks are for the later RDS shape.
 - Keep the first CDK implementation explicit in `infra-stack.ts`; defer reusable constructs until after the first successful deploy.
-- Use typed CDK config with required `allowedIngressCidr`, `maxAzs: 1`, and `enableEcsExec`.
+- Use typed CDK config with required restricted `allowedIngressCidr`, fixed `vpcMaxAzs: 2`, fixed `workloadAzCount: 1`, and `enableEcsExec`.
 - Keep logs on stdout through the ECS awslogs driver.
 - Do not put ids such as trace_id, request_id, correlation_id, reservation_request_id, or user_id into metric labels.
 - Frontend is Phase 2: S3 + CloudFront, CI/CD asset upload, relative `/graphql`, and CloudFront-to-ALB restrictions.

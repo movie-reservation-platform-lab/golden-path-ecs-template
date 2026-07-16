@@ -24,20 +24,20 @@ flowchart TB
 
     subgraph ecs["Amazon ECS"]
       direction LR
-      cluster["ECS cluster"]
+      cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo"]
       service["Fargate service<br/>desired count: 1"]
       cluster -->|"hosts"| service
     end
 
-    subgraph vpc["VPC: one Availability Zone, no NAT Gateway"]
-      direction LR
+    subgraph vpc["VPC: two Availability Zones, no NAT Gateway"]
+      direction TB
       igw["Internet Gateway"]
 
-      subgraph publicSubnet["Public subnet"]
-        alb["Internet-facing<br/>Application Load Balancer"]
+      subgraph publicSubnets["Public subnets: AZ A + AZ B"]
+        alb["Internet-facing Application Load Balancer<br/>network interfaces in both AZs"]
       end
 
-      subgraph isolatedSubnet["Private isolated subnet"]
+      subgraph workloadSubnet["Selected private isolated workload subnet: AZ A"]
         direction TB
         task["Running Fargate task<br/>movie-reservation-service<br/>TCP port 3000<br/>no public IP"]
         interfaceEndpoints["Interface VPC endpoints<br/>ECR API + ECR Docker<br/>CloudWatch Logs<br/>SSM Messages optional"]
@@ -46,6 +46,8 @@ flowchart TB
         task -->|"HTTPS 443"| interfaceEndpoints
         task -->|"image layers"| s3Endpoint
       end
+
+      standbySubnet["Second private isolated subnet: AZ B<br/>no task or endpoint ENIs in Wave 2"]
 
       igw -->|"HTTP 80<br/>restricted source CIDR"| alb
       alb -->|"HTTP 3000<br/>application + health checks"| task
@@ -99,7 +101,7 @@ flowchart TB
 
     subgraph ecsResources["Amazon ECS / Fargate resources"]
       direction LR
-      cluster["ECS cluster<br/>Container Insights disabled"]
+      cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo<br/>Container Insights disabled"]
       service["Fargate service<br/>desired count: 1<br/>deployment rollback enabled<br/>health grace: 60s"]
       taskDefinition["Fargate task definition<br/>256 CPU units / 512 MiB<br/>app container: TCP 3000<br/>awslogs driver"]
       executionRole["Task execution role<br/>image pull + log delivery"]
@@ -111,14 +113,14 @@ flowchart TB
       taskDefinition --> taskRole
     end
 
-    subgraph vpc["VPC: one Availability Zone, no NAT Gateway"]
+    subgraph vpc["VPC: two Availability Zones, no NAT Gateway"]
       direction TB
       igw["Internet Gateway"]
 
-      subgraph publicSubnet["Public subnet /24"]
+      subgraph publicSubnets["Public subnets /24: AZ A + AZ B"]
         direction LR
         publicRoute["Public route table<br/>0.0.0.0/0 to IGW"]
-        alb["Internet-facing<br/>Application Load Balancer"]
+        alb["Internet-facing Application Load Balancer<br/>attached to both public subnets"]
         listener["HTTP listener<br/>port 80"]
         targetGroup["IP target group<br/>HTTP port 3000<br/>health: GET /health every 30s<br/>deregistration delay: 30s"]
 
@@ -126,7 +128,7 @@ flowchart TB
         alb --> listener --> targetGroup
       end
 
-      subgraph isolatedSubnet["Private isolated subnet /24: no public IP or internet route"]
+      subgraph workloadSubnet["Selected private isolated workload subnet /24: AZ A"]
         direction TB
         isolatedRoute["Isolated route table<br/>VPC-local routes"]
         task["Fargate task ENI<br/>movie-reservation-service<br/>TCP port 3000"]
@@ -147,6 +149,8 @@ flowchart TB
         task -->|"HTTPS 443<br/>application logs"| logsEndpoint
         task -.->|"HTTPS 443<br/>enableEcsExec=true"| ssmEndpoint
       end
+
+      standbySubnet["Second private isolated subnet /24: AZ B<br/>created for symmetric VPC topology<br/>unused by Wave 2 workloads and endpoints"]
 
       subgraph securityGroups["Security groups"]
         direction LR
@@ -197,19 +201,42 @@ flowchart TB
 
 - **Public ingress:** the Internet Gateway and public route make the ALB
   internet-facing. Its security group still restricts port 80 to
-  `allowedIngressCidr`.
+  `allowedIngressCidr`, and the config boundary rejects `0.0.0.0/0` as an
+  ingress value. The public route table's `0.0.0.0/0 -> Internet Gateway` route
+  is different: it makes the public subnet internet-routable, but it does not
+  itself authorize inbound connections through the ALB security group.
 - **Private compute:** the Fargate task receives an ENI in the isolated subnet,
   has no public IP, and accepts port 3000 only from the ALB security group.
+- **Availability Zone split:** the VPC and internet-facing ALB span two
+  Availability Zones. The demo task, S3 endpoint route, and interface endpoint
+  ENIs are explicitly pinned to one workload subnet to avoid paying for a
+  duplicate endpoint set before high availability is required. Target-group
+  ALB cross-zone load balancing is explicitly enabled so both nodes can route
+  to the healthy target in the selected workload AZ.
 - **No-NAT service access:** ECR API, ECR Docker, CloudWatch Logs, and optional
   SSM Messages use interface endpoint ENIs. ECR image layers use the S3 gateway
-  endpoint attached to the isolated route table.
+  endpoint attached only to the selected workload subnet's route table.
 - **ECS control resources:** the cluster, service, task definition, and IAM roles
   are regional resources. The running Fargate task is the part placed in the
   selected VPC subnet.
+- **ECS Exec:** enabling Exec adds the SSM Messages endpoint and grants the task
+  role permission to open control and data channels. The operator invoking
+  `execute-command` still needs separate identity-side IAM permission.
 - **Health and deployment:** the target group calls `GET /health` every 30
   seconds. The ECS service keeps one desired task, gives startup a 60-second
   grace period, and rolls back failed deployments.
 
-Both diagrams show one public and one isolated subnet because the current
-`PlatformConfig` fixes `maxAzs` to `1`. Security groups use CDK's default
-outbound allowance; the rules shown above are the explicit inbound rules.
+Both diagrams show the fixed Wave 2 compromise represented by `PlatformConfig`:
+`vpcMaxAzs` is `2`, while `workloadAzCount` is `1`. These values are not exposed
+through CDK context. Security groups use CDK's default outbound allowance; the
+rules shown above are the explicit inbound rules.
+
+The cluster construct ID is `ApplicationCluster`, and its physical name is
+`movie-reservation-platform-aws-demo`. The cluster is named for the platform and
+environment because it can later host multiple independently deployed ECS
+services. Service-owned resources such as the ECS service, task-definition
+family, and log groups retain the `movie-reservation-service` identity. The
+`workload` subnet name remains role-based so it can host task and endpoint ENIs
+for more than one application service. `Project`, `Platform`, and `Environment`
+tags apply across the stack, while the `Service` tag is limited to
+service-owned compute, ingress, and logging resources.
