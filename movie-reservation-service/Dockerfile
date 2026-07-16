@@ -25,7 +25,6 @@ COPY --from=build /workspace/package.json /workspace/package-lock.json ./
 COPY --from=build /workspace/node_modules node_modules
 COPY --from=build /workspace/movie-reservation-service/package.json movie-reservation-service/package.json
 COPY --from=build /workspace/movie-reservation-service/dist movie-reservation-service/dist
-COPY --from=build /workspace/movie-reservation-service/env_files/templates movie-reservation-service/env_files/templates
 
 WORKDIR /workspace/movie-reservation-service
 EXPOSE 3000
