@@ -366,3 +366,57 @@ Do not generalize this into broad `utils`, `helpers`, or generic `shared`
 folders. Add new feature folders or platform capabilities only when real code
 needs them. Keep unit tests colocated with frontend modules for now; create
 separate e2e/browser test folders when Playwright is added.
+
+---
+
+## ADR 015: Keep Public CI Credential-Free And Deploy From A Private Promotion Workflow
+
+Status: accepted.
+
+### Decision
+
+Keep the public repository's normal CI path credential-free. Pull requests and
+public `main` should build, test, and synthesize CDK without AWS access.
+
+For AWS deployment, use a separate private deployment workflow that is driven by
+an explicit public source commit SHA. The private workflow should:
+
+- require a human-provided commit SHA or human-approved promotion event
+- check out the public repository at that exact SHA
+- run the relevant build, tests, CDK synth, and CDK diff steps again
+- pause behind a protected deployment environment before `cdk deploy`
+- assume AWS roles via OIDC only in the deploy job
+- let CDK publish Docker image assets into the account's bootstrap ECR
+  repository during deployment
+
+The public repository should not push Docker images or CDK assets directly to a
+private AWS account as part of normal public CI.
+
+### Reason
+
+The important trust boundary is not whether the source code is public. The
+important boundary is which reviewed commit is allowed to obtain AWS deployment
+authority.
+
+Using the public commit SHA as the promoted artifact keeps the public project
+fully inspectable while avoiding AWS credentials in public CI. The private
+deployment workflow owns the AWS account wiring, deployment approvals,
+environment configuration, and role assumption. This also fits the current CDK
+asset model: the private workflow can build the service image and let CDK
+publish it to the bootstrap ECR repository when deployment is actually
+approved.
+
+### Tradeoff
+
+This adds one more repository or private workflow to maintain, and deployments
+are intentionally less automatic. That cost is acceptable for this learning
+project because it makes the deployment trust model explicit:
+
+- public repo review decides what code may enter `main`
+- private promotion decides which exact commit may reach AWS
+- AWS roles are exposed only to the private deployment path
+
+If a future environment needs fully automated deployment from public `main`,
+revisit this decision with protected GitHub environments, exact OIDC subject
+conditions, permission-bounded CDK bootstrap roles, and a dedicated sandbox AWS
+account.
