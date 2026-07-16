@@ -13,12 +13,5 @@
     "dev:web": "npm -w movie-reservation-web run dev",
     "check:web": "npm -w movie-reservation-web run check",
     "ci": "npm -w movie-reservation-service run ci && npm -w ecs-infra run ci && npm -w movie-reservation-web run check"
-  },
-  "devDependencies": {
-    "aws-cdk": "^2.1112.0"
-  },
-  "dependencies": {
-    "aws-cdk-lib": "^2.244.0",
-    "constructs": "^10.5.1"
   }
 }
