@@ -110,6 +110,7 @@ Read the relevant rule files from `.ai/rules/` when the task matches their descr
 
 Read the relevant skill file from `.ai/skills/` when the task matches its description.
 
+- **aws-cdk-iac**: Use when designing, implementing, reviewing, or explaining AWS CDK infrastructure in ecs-infra, including construct choices, CloudFormation output, networking, IAM, ECS/Fargate, asset publishing, tests, synth/deploy workflow, and CDK best practices. (read `.ai/skills/aws-cdk-iac/SKILL.md`)
 - **clean-architecture**: Repository-specific skill (read `.ai/skills/clean-architecture/SKILL.md`)
 - **fastify**: Legacy/revisit-only skill for old Fastify service code. Do not use for current service work unless explicitly asked to revisit the HTTP adapter. (read `.ai/skills/fastify/SKILL.md`)
 - **frontend-clean-architecture**: Repository-specific skill (read `.ai/skills/frontend-clean-architecture/SKILL.md`)

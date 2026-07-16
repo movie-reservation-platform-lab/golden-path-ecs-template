@@ -74,6 +74,21 @@ The workflow at `.github/workflows/ci.yml` exposes six required CI-1 jobs:
 - `infra`: CDK workspace build, Jest tests, and `cdk synth`.
 - `web`: frontend TypeScript typecheck, Vitest tests, and Vite production build.
 
+As a temporary CI-only bridge, the `infra` job synthesizes with
+`allowedIngressCidr=203.0.113.10/32`. `203.0.113.0/24` is reserved for
+documentation, so this gives credential-free CI a deterministic,
+non-production configuration without allowing public internet ingress. It is
+not the final environment-configuration design and must not be reused as a
+deployment default.
+
+The public workflow must remain credential-free: it must not receive AWS access
+keys, an AWS OIDC deploy role, account-specific deployment configuration, or
+permission to publish CDK assets. Real `cdk diff`, `deploy`, and `destroy`
+operations belong to the private promotion workflow described by
+[ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow).
+That workflow will check out an approved public commit SHA, assume a short-lived
+AWS role through OIDC, and provide the real restricted ingress CIDR explicitly.
+
 `service-unit-tests`, `service-integration-tests`, `service-build`, and `infra`
 run after `service-quality` passes. The `web` job runs separately so frontend
 failures are visible as their own pull request check.

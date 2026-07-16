@@ -140,8 +140,10 @@ jobs:
       - name: Run CDK assertion tests
         run: npm -w ecs-infra test
 
+      # Temporary CI-only context until ADR 015's private promotion workflow
+      # owns real environment configuration and AWS deployment authority.
       - name: Synthesize CDK app
-        run: npm -w ecs-infra run cdk -- synth
+        run: npm -w ecs-infra run cdk -- synth -c allowedIngressCidr=203.0.113.10/32
 
   web:
     name: web

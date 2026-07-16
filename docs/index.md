@@ -18,6 +18,7 @@ Current documents:
 - [architecture.md](architecture/architecture.md) - current system architecture and target direction.
 - [architecture-decisions.md](architecture/architecture-decisions.md) - ADR-style decision log and tradeoffs.
 - [database-schema.md](architecture/database-schema.md) - current Postgres table relationships and reservation workflow constraints.
+- [ecs-fargate-deployment.md](architecture/ecs-fargate-deployment.md) - high-level runtime architecture and detailed AWS resource topology for the ECS/Fargate stack.
 - [frontend-architecture.md](architecture/frontend-architecture.md) - React/Vite frontend clean architecture layers, folder structure, dependency rules, and diagrams.
 - [graphql-request-flow.md](architecture/graphql-request-flow.md) - GraphQL request path through NestJS, Apollo, middleware, context, resolvers, and clean architecture layers.
 - [golden-path.md](architecture/golden-path.md) - the opinionated service path this template should provide.
