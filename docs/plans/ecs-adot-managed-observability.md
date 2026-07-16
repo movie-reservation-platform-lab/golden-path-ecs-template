@@ -532,8 +532,12 @@ Config rules:
 - `platformName` is fixed at `movie-reservation-platform`. It names shared
   platform-level resources such as the ECS application cluster and is not
   caller-controlled CDK context.
-- `allowedIngressCidr` is required for real deploys. The CDK test suite can use
-  a documentation CIDR such as `203.0.113.10/32`.
+- `allowedIngressCidr` is required for real deploys. Wave 2 tests and public CI
+  synth temporarily use the documentation CIDR `203.0.113.10/32`; this is a
+  credential-free validation convention, not a deployment default. Replace the
+  convention when the private promotion workflow from
+  [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow)
+  owns real environment configuration and AWS deployment authority.
 - Reject `allowedIngressCidr=0.0.0.0/0`; the backend-only demo must use an
   explicit restricted source range.
 - `vpcMaxAzs` is fixed at `2` so the internet-facing ALB can attach to two

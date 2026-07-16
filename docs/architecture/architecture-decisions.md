@@ -392,6 +392,13 @@ an explicit public source commit SHA. The private workflow should:
 The public repository should not push Docker images or CDK assets directly to a
 private AWS account as part of normal public CI.
 
+The current public workflow temporarily supplies the reserved documentation
+CIDR `203.0.113.10/32` only so credential-free `cdk synth` can exercise the
+required configuration boundary. This value is not a deployment default and
+does not change the trust model above. The private promotion workflow must own
+real environment configuration, AWS role assumption, asset publication, and
+deployment commands.
+
 ### Reason
 
 The important trust boundary is not whether the source code is public. The
