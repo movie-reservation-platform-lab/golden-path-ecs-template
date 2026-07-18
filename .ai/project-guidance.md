@@ -75,6 +75,9 @@ Run the narrowest useful check while iterating, then run the relevant full check
 - Update docs for user-facing behavior, architecture decisions, operations, or developer workflow changes.
 - Use `docs/architecture/architecture-decisions.md` for durable architectural decisions.
 - Use `docs/workflows/curated-technology-resources.md` for the expanded resource list.
+- For documentation-only changes, inspect the relevant diff. Do not run Prettier, builds, linters, or application tests unless the user explicitly requests them or the repository has a dedicated documentation check required for the changed files.
+- Treat verification commands embedded in implementation plans as scoped to implementing that plan, not as global repository instructions.
+- Validate local documentation links only when links, files, or directories are added, moved, renamed, or removed.
 - PR or review summaries should explain what changed, why it changed, and how it was verified.
 
 ## Curated Technology Resources

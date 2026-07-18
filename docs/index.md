@@ -29,27 +29,46 @@ Current documents:
 
 ## `plans/`
 
-Implementation plans, migration plans, roadmaps, and follow-up task lists.
+Current implementation plans, roadmaps, and follow-up task lists.
 
 Use this folder when a document describes planned work, sequencing, risks, or acceptance criteria.
 
-Current documents:
+Plan lifecycle:
 
-- [d4-graphql-polling-api.md](plans/d4-graphql-polling-api.md) - implementation plan for the movie reservation GraphQL polling API.
-- [d8a-rebase-frontend-spike.md](plans/d8a-rebase-frontend-spike.md) - implementation plan for safely porting the frontend spike onto finalized D7 observability.
-- [distributed-observability-demo-platform.md](plans/distributed-observability-demo-platform.md) - future follow-ups for the multi-service observability demo platform direction.
-- [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - implementation plan for ECS/Fargate deployment with an ADOT sidecar, X-Ray, CloudWatch metrics, AMP, AMG, and demo reservation failure injection.
-- [github-actions-ci-foundation.md](plans/github-actions-ci-foundation.md) - implementation plan for the first small GitHub Actions CI workflow.
-- [implementation-plan.md](plans/implementation-plan.md) - overall learning and build plan.
-- [frontend-follow-up-triage.md](plans/frontend-follow-up-triage.md) - D8 frontend issue split and priority decision for related follow-ups.
-- [local-observability-foundation.md](plans/delivered/local-observability-foundation.md) - delivered implementation plan for local structured logging, OpenTelemetry traces/metrics, API containerization, and collector integration.
-- [movie-reservation-frontend-product-requirements.md](plans/movie-reservation-frontend-product-requirements.md) - product and UX requirements for the D8 customer-facing movie booking frontend.
-- [movie-reservation-platform-roadmap.md](plans/movie-reservation-platform-roadmap.md) - roadmap for the movie reservation platform slice.
-- [nestjs-service-migration.md](plans/nestjs-service-migration.md) - completed/active migration plan for moving the service to NestJS.
-- [platform-follow-up-tasks.md](plans/platform-follow-up-tasks.md) - platform, CI/CD, infrastructure workflow, and delivery-system follow-up tasks.
-- [production-observability-dashboard.md](plans/production-observability-dashboard.md) - follow-up plan for production traffic, latency, errors, saturation dashboards, alerts, and operations procedures.
-- [service-di-composition-breakdown.md](plans/service-di-composition-breakdown.md) - post-D4 plan for splitting NestJS dependency wiring into typed composition profiles and focused provider groups.
-- [service-follow-up-tasks.md](plans/service-follow-up-tasks.md) - intentional leftovers from the service migration.
+- Keep only current or future work directly under `plans/`.
+- Move completed plans to `plans/delivered/`; keep their original implementation
+  language as historical context.
+- Delete plans that are fully superseded and add their remaining decisions to a
+  current roadmap, ADR, runbook, or issue.
+- Treat GitHub issues as execution status and the platform roadmap as delivery
+  order.
+
+Active documents:
+
+- [movie-reservation-platform-roadmap.md](plans/movie-reservation-platform-roadmap.md) - canonical milestone status and delivery order.
+- [ecs-adot-xray-tracing.md](plans/ecs-adot-xray-tracing.md) - focused implementation plan and source of truth for issue #37 on the current branch.
+- [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - umbrella AWS managed-observability background retained primarily for issue #38; it is not the #37 implementation plan.
+- [movie-reservation-frontend-product-requirements.md](plans/movie-reservation-frontend-product-requirements.md) - product and UX acceptance bar for the remaining D8 frontend work.
+- [frontend-follow-up-triage.md](plans/frontend-follow-up-triage.md) - current D8 issue reconciliation and sequencing.
+- [production-observability-dashboard.md](plans/production-observability-dashboard.md) - issue #30 dashboard, alerting, saturation, and operational follow-up.
+- [distributed-observability-demo-platform.md](plans/distributed-observability-demo-platform.md) - adoption and reconciliation plan for the implemented multi-repository demo branches.
+- [service-follow-up-tasks.md](plans/service-follow-up-tasks.md) - issue-backed and unscheduled service/domain/API backlog.
+- [platform-follow-up-tasks.md](plans/platform-follow-up-tasks.md) - CI/CD, private deployment, and platform tooling backlog.
+
+Delivered implementation records:
+
+- [nestjs-service-migration.md](plans/delivered/nestjs-service-migration.md)
+- [d4-graphql-polling-api.md](plans/delivered/d4-graphql-polling-api.md)
+- [d5-in-process-processor-contract.md](plans/delivered/d5-in-process-processor-contract.md)
+- [d6-docker-compose-postgres-knex.md](plans/delivered/d6-docker-compose-postgres-knex.md)
+- [d6-1-review-findings.md](plans/delivered/d6-1-review-findings.md)
+- [service-di-composition-breakdown.md](plans/delivered/service-di-composition-breakdown.md)
+- [github-actions-ci-foundation.md](plans/delivered/github-actions-ci-foundation.md)
+- [local-observability-foundation.md](plans/delivered/local-observability-foundation.md)
+- [d8a-rebase-frontend-spike.md](plans/delivered/d8a-rebase-frontend-spike.md)
+- [movie-reservation-web-orchestrator-refactor.md](plans/delivered/movie-reservation-web-orchestrator-refactor.md)
+- [movie-reservation-web-clean-architecture-refactor.md](plans/delivered/movie-reservation-web-clean-architecture-refactor.md)
+- [movie-reservation-web-stabilization-review-findings.md](plans/delivered/movie-reservation-web-stabilization-review-findings.md)
 
 ## `learning/`
 
@@ -75,6 +94,7 @@ Use this folder for runbooks, health-check procedures, deployment checks, smoke 
 
 Current documents:
 
+- [aws-cdk-local-deployment.md](operations/aws-cdk-local-deployment.md) - one-time AWS identity/bootstrap setup and the local synth, diff, deploy, verification, destroy, and asset-cleanup runbook for `GoldenPathDemoStack`.
 - [runbook.md](operations/runbook.md) - local and future operational checks for the service/platform.
 
 ## `workflows/`
@@ -93,13 +113,3 @@ Current documents:
 - [git-workflow.md](workflows/git-workflow.md) - branch naming, commit messages, squash merges, and issue-linked workflow.
 - [local-observability.md](workflows/local-observability.md) - local structured logs, OTel traces/metrics, collector ports, external Grafana stack stitching, and smoke checks.
 - [observability-manager-demo.md](workflows/observability-manager-demo.md) - meeting runbook for demonstrating Tempo, Loki, Prometheus, trace/log correlation, and reservation business metrics.
-
-## `scratch/`
-
-Temporary notes and rough captures that may later become plans, learning notes, or architecture docs.
-
-Use this folder for unfinished thinking. When a scratch note becomes useful and durable, move it into the appropriate category above.
-
-Current documents:
-
-- [temp-notes.md](scratch/temp-notes.md) - temporary working notes.

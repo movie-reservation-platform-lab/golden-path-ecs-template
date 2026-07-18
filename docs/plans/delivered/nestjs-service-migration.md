@@ -56,7 +56,8 @@ Current verification results before planning:
 
 ### Confirmed Requirements
 
-- Implement Phase 1 from `docs/plans/implementation-plan.md`.
+- Implement the original NestJS phase now summarized by
+  `docs/plans/movie-reservation-platform-roadmap.md`.
 - Use NestJS for the service.
 - Follow clean architecture fully rather than using a flat feature-module layout.
 - Build `AppModule`, health module/controller, bookings GraphQL module/resolver, `BookingsService`, booking repository port, in-memory repository adapter, and DI composition modules.
@@ -211,7 +212,7 @@ di/bookings/booking.tokens.ts
 Example token:
 
 ```ts
-export const BOOKING_REPOSITORY = Symbol('BOOKING_REPOSITORY');
+export const BOOKING_REPOSITORY = Symbol("BOOKING_REPOSITORY");
 ```
 
 Composition modules construct plain classes explicitly with factory providers:
@@ -624,17 +625,17 @@ Regression checks:
 
 ## 15. Risks and Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-|---|---:|---:|---|
-| Clean architecture increases first-change file count | Medium | High | Keep one `BookingsService`; defer separate use-case classes until behavior grows. |
-| Application or infrastructure accidentally imports Nest | Medium | Medium | Add plan rule: Nest imports only in app bootstrap, presentation, and `di/`. Review with `rg "@nestjs" service/src/domain service/src/application service/src/infrastructure/repositories`. |
-| TypeScript interfaces disappear at runtime | High | High | Use Symbol tokens for DI ports and decorated classes for GraphQL models. |
-| GraphQL decorator metadata not emitted | High | Medium | Enable `experimentalDecorators` and `emitDecoratorMetadata`; use decorated classes instead of interfaces for GraphQL schema types. |
-| Vitest/Nest decorator transform mismatch | High | Medium | Configure `unplugin-swc` and `@swc/core`; verify with Nest integration/e2e tests. |
-| Current baseline is already red | Medium | High | Replace the broken Fastify route file early and make build/test green as the first milestone. |
-| In-memory state misunderstood as production-ready | Medium | Medium | Keep in-memory repository under infrastructure and document it as non-durable/process-local. |
-| Generated `schema.gql` churn | Low | Medium | Commit it intentionally as the GraphQL contract and review changes with schema diffs. |
-| Too much validation added in Phase 1 | Medium | Medium | Limit Phase 1 to domain invariants and GraphQL required fields; defer global validation/error mapping to Phase 2. |
+| Risk                                                    | Impact | Likelihood | Mitigation                                                                                                                                                                                 |
+| ------------------------------------------------------- | -----: | ---------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Clean architecture increases first-change file count    | Medium |       High | Keep one `BookingsService`; defer separate use-case classes until behavior grows.                                                                                                          |
+| Application or infrastructure accidentally imports Nest | Medium |     Medium | Add plan rule: Nest imports only in app bootstrap, presentation, and `di/`. Review with `rg "@nestjs" service/src/domain service/src/application service/src/infrastructure/repositories`. |
+| TypeScript interfaces disappear at runtime              |   High |       High | Use Symbol tokens for DI ports and decorated classes for GraphQL models.                                                                                                                   |
+| GraphQL decorator metadata not emitted                  |   High |     Medium | Enable `experimentalDecorators` and `emitDecoratorMetadata`; use decorated classes instead of interfaces for GraphQL schema types.                                                         |
+| Vitest/Nest decorator transform mismatch                |   High |     Medium | Configure `unplugin-swc` and `@swc/core`; verify with Nest integration/e2e tests.                                                                                                          |
+| Current baseline is already red                         | Medium |       High | Replace the broken Fastify route file early and make build/test green as the first milestone.                                                                                              |
+| In-memory state misunderstood as production-ready       | Medium |     Medium | Keep in-memory repository under infrastructure and document it as non-durable/process-local.                                                                                               |
+| Generated `schema.gql` churn                            |    Low |     Medium | Commit it intentionally as the GraphQL contract and review changes with schema diffs.                                                                                                      |
+| Too much validation added in Phase 1                    | Medium |     Medium | Limit Phase 1 to domain invariants and GraphQL required fields; defer global validation/error mapping to Phase 2.                                                                          |
 
 ## 16. Done Criteria
 

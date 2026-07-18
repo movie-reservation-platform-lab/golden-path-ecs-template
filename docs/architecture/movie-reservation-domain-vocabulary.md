@@ -106,11 +106,11 @@ the desired long-term customer experience. A later product/design pass should
 decide whether to offer partial confirmation, alternative seats, or explicit
 user choice when only some requested seats are unavailable.
 
-`FAILED` is also a short-term D5 terminal state. It means the in-process
-processor hit an unexpected internal failure after claiming the request. D5
-does not retry failed requests, reclaim stuck `PROCESSING` requests, or expose a
-dead-letter workflow. Later durable worker/database phases should add retry
-policy, claim leases or timeouts, and operator-facing failure handling.
+`FAILED` is a terminal state for unexpected internal failures after bounded
+processing retries. D6.1 added claim leases, heartbeats, stuck-work reclaim, and
+separate lease/transient retry budgets for the in-process worker. The service
+still has no separate durable worker runtime, queue, or dead-letter/manual
+recovery workflow; those remain later worker-platform concerns.
 
 The current GraphQL read contract also has a short-term simplification:
 `reservationRequestStatus(id)` and `reservationResult(requestId)` are nullable.

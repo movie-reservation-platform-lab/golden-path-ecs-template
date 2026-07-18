@@ -1,5 +1,15 @@
 # Production Observability Dashboard Follow-Up
 
+Status: open under
+[#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).
+Issue #38 must first establish CloudWatch/AMP/Managed Grafana metric export for
+the ECS environment; this plan then expands the initial dashboard and missing
+saturation signals.
+
+Do not duplicate #38's initial Traffic/Errors/Latency/Saturation dashboard in
+#30. Treat that dashboard as the starting artifact and use #30 for the missing
+signals, alert policy, drilldowns, and operator procedure.
+
 ## Summary
 
 The local observability foundation is enough for a useful first dashboard, but
@@ -23,7 +33,8 @@ ready dashboard and runbook.
 | `errors`     | HTTP `status_family`, GraphQL `outcome`, GraphQL exception counts, processor `outcome`/`reason`, processor exceptions     | Enough for v1 error-rate panels.     |
 | `saturation` | Health/readiness checks and indirect worker outcomes only                                                                 | Not enough for production operation. |
 
-Traces and logs are useful for drilldown:
+Traces and logs are useful for drilldown. The local backends are Tempo and Loki;
+the AWS path uses X-Ray and CloudWatch Logs:
 
 - HTTP, Express, GraphQL, Knex, and pg instrumentation provide technical spans.
 - Custom GraphQL spans include operation and bounded business context.
@@ -90,8 +101,8 @@ Add these missing signals before calling the dashboard production-ready:
 
 Dashboard links and runbook procedures should support these paths:
 
-- from high GraphQL error rate to Tempo traces by operation
-- from a trace to Loki logs by `trace_id`
+- from high GraphQL error rate to traces by operation in Tempo or X-Ray
+- from a trace to logs by `trace_id` in Loki or CloudWatch Logs Insights
 - from one user workflow to logs by `correlation_id`
 - from one HTTP call to logs by `request_id`
 - from async reservation failures to logs by `reservation_request_id`
@@ -109,9 +120,10 @@ The future runbook should include a concrete triage order:
 4. Check reservation workflow panels if the symptom involves booking requests.
 5. Check saturation panels for backlog, worker pressure, database pressure,
    process pressure, or platform pressure.
-6. Use Tempo for representative traces.
-7. Use Loki with `trace_id`, `correlation_id`, `request_id`, or
-   `reservation_request_id` for detailed logs.
+6. Use Tempo locally or X-Ray in AWS for representative traces.
+7. Use Loki locally or CloudWatch Logs Insights in AWS with `trace_id`,
+   `correlation_id`, `request_id`, or `reservation_request_id` for detailed
+   logs.
 8. Decide whether the response is application rollback, worker restart,
    database investigation, scaling action, or dependency/platform escalation.
 

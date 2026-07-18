@@ -1,5 +1,8 @@
 # Implementation Plan: Movie Reservation Web Orchestrator Refactor
 
+> Status: delivered as part of issue #23 / PR #33. Preserved as implementation
+> history.
+
 ## 1. Summary
 
 Refactor `MovieReservationDemo` so it remains the page-level composer while stateful workflow logic moves into small feature-local hooks. Preserve the current UI, GraphQL operation flow, polling limits, cancellation behavior, and diagnostics exchange log.
@@ -110,11 +113,11 @@ No rollout needed. This is an internal structure-only frontend refactor.
 
 ## 15. Risks and Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-|---|---:|---:|---|
-| Stale polling updates current state | Medium | Medium | Preserve run-id cancellation guard in the reservation hook. |
-| Trace diagnostics regress | Medium | Low | Keep `GraphqlExchange` logging API unchanged. |
-| Hook interfaces hide too much state | Low | Medium | Return explicit named values instead of broad opaque objects where useful. |
+| Risk                                | Impact | Likelihood | Mitigation                                                                 |
+| ----------------------------------- | -----: | ---------: | -------------------------------------------------------------------------- |
+| Stale polling updates current state | Medium |     Medium | Preserve run-id cancellation guard in the reservation hook.                |
+| Trace diagnostics regress           | Medium |        Low | Keep `GraphqlExchange` logging API unchanged.                              |
+| Hook interfaces hide too much state |    Low |     Medium | Return explicit named values instead of broad opaque objects where useful. |
 
 ## 16. Done Criteria
 

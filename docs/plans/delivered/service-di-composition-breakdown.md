@@ -1,5 +1,7 @@
 # Implementation Plan: Service DI Composition Breakdown
 
+> Status: delivered by issue #18 / PR #19. Preserved as implementation history.
+
 ## 1. Summary
 
 After D6 adds local Postgres persistence, refactor the NestJS dependency injection wiring so the root application module stays small as authentication, persistence, workers, observability, and environment-specific runtime profiles grow.

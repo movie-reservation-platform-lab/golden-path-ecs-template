@@ -1,5 +1,7 @@
 # Implementation Plan: D8a Rebase Frontend Spike
 
+> Status: delivered by issue #23 / PR #33. Preserved as implementation history.
+
 ## 1. Summary
 
 Issue #23 should turn the existing `observability_demo_plus_frontend` spike into

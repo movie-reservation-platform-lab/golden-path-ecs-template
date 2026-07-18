@@ -309,18 +309,25 @@ Document exact `kubectl` commands once manifests exist.
 
 ## ECS Checks
 
-Target checks:
+Current checks for the in-memory ECS/ADOT stack:
 
-- ECS service desired count equals running count
-- tasks are healthy
-- target group health checks pass
-- ALB route responds
-- CloudWatch logs are present
-- database migration task can run successfully once RDS exists
-- API and worker services can be checked separately once SQS exists
-- OpenTelemetry export path is working
+- ECS service desired count equals running count;
+- the essential app is running and the target group `GET /health` check passes;
+- the nonessential `adot-collector` container reports its independent health
+  state without gating app availability;
+- app JSON logs and collector diagnostics arrive in separate CloudWatch log
+  groups;
+- `npm -w ecs-infra run smoke:xray` finds the exact generated trace and
+  `movie-reservation-service` segment through `BatchGetTraces`;
+- the task role and X-Ray endpoint policy expose only `PutTraceSegments` and
+  `PutTelemetryRecords`;
+- no metrics/AMP/Grafana or database resources appear before their own issues.
 
-Document exact AWS CLI commands once the CDK stack creates the resources.
+Use the exact AWS CLI inspection, trace smoke, rollback, and teardown commands
+in [the local CDK deployment runbook](aws-cdk-local-deployment.md).
+
+Future checks remain separate: issue #7 must prove the RDS migration `RunTask`,
+and issue #8 must prove independently deployable API/worker signaling.
 
 ---
 
@@ -337,6 +344,7 @@ Document exact AWS CLI commands once the CDK stack creates the resources.
 - migration task uses different environment variables than the API task
 - SQS worker is not updating reservation request status
 - dead-letter queue receives messages silently
-- OpenTelemetry endpoint misconfigured
-- collector running but backend unavailable
+- OpenTelemetry endpoint misconfigured while the application remains healthy
+- collector unhealthy while ECS service health remains green
+- collector running but X-Ray endpoint, IAM, or backend unavailable
 - GraphQL schema generation fails because decorator metadata is missing

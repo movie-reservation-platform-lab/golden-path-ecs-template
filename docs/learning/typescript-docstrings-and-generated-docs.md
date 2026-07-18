@@ -51,13 +51,13 @@ That comment is consumed by editors, TypeScript-aware tooling, linters, and docu
 
 The important difference:
 
-| Feature | Python docstring | TypeScript JSDoc/TSDoc |
-| --- | --- | --- |
-| Syntax | `"""..."""` inside object body | `/** ... */` before declaration |
-| Runtime value | Yes, via `.__doc__` | No, normally stripped/ignored |
-| Editor hover docs | Yes | Yes |
-| Generated docs | Sphinx | TypeDoc or API Extractor |
-| Type information | Often duplicated in text | Usually inferred from TS types |
+| Feature           | Python docstring               | TypeScript JSDoc/TSDoc          |
+| ----------------- | ------------------------------ | ------------------------------- |
+| Syntax            | `"""..."""` inside object body | `/** ... */` before declaration |
+| Runtime value     | Yes, via `.__doc__`            | No, normally stripped/ignored   |
+| Editor hover docs | Yes                            | Yes                             |
+| Generated docs    | Sphinx                         | TypeDoc or API Extractor        |
+| Type information  | Often duplicated in text       | Usually inferred from TS types  |
 
 ## JSDoc vs TSDoc
 
@@ -169,7 +169,7 @@ Common tags:
 
 Example with `@example`:
 
-```ts
+````ts
 /**
  * Converts a domain booking into a GraphQL response model.
  *
@@ -178,7 +178,7 @@ Example with `@example`:
  * const gqlBooking = toBookingModel(domainBooking);
  * ```
  */
-```
+````
 
 ## Can TypeScript generate documentation like Python Sphinx?
 
@@ -231,7 +231,7 @@ Then add `typedoc.json`:
 
 ```json
 {
-  "entryPoints": ["service/src", "infra/lib"],
+  "entryPoints": ["movie-reservation-service/src", "ecs-infra/lib"],
   "entryPointStrategy": "expand",
   "out": "docs/api",
   "excludePrivate": true,
@@ -262,7 +262,8 @@ That maps well to this repository:
 
 - `docs/architecture/architecture.md` explains design.
 - `docs/operations/runbook.md` explains operations.
-- TypeDoc could generate reference docs from `service/src` and `infra/lib`.
+- TypeDoc could generate reference docs from `movie-reservation-service/src`
+  and `ecs-infra/lib`.
 
 ## TypeScript documentation comments and runtime validation
 
@@ -293,10 +294,10 @@ Use documentation comments sparingly but intentionally.
 
 Good places:
 
-- domain classes and value objects in `service/src/domain`
-- application services and ports in `service/src/application`
+- domain classes and value objects in `movie-reservation-service/src/domain`
+- application services and ports in `movie-reservation-service/src/application`
 - mappers when they translate between domain and GraphQL models
-- CDK stack constructs in `infra/lib`
+- CDK stack constructs in `ecs-infra/lib`
 
 Avoid documenting:
 

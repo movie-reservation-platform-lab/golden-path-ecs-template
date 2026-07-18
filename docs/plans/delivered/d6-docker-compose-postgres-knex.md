@@ -1,5 +1,7 @@
 # Implementation Plan: D6 Docker Compose, Postgres, and Knex
 
+> Status: delivered by issue #3 / PR #17. Preserved as implementation history.
+
 ## 1. Summary
 
 Add local Postgres persistence for the movie reservation service using Docker Compose, Knex migrations, a Postgres repository adapter, and focused Testcontainers e2e coverage.

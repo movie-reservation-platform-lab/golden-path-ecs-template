@@ -1,10 +1,17 @@
 # Platform Follow-up Tasks
 
+Last reviewed: 2026-07-17
+
 This file tracks platform, CI/CD, infrastructure workflow, and delivery-system follow-ups that are intentionally outside the current implementation slice.
 
 Use `docs/plans/service-follow-up-tasks.md` for service/domain/API leftovers. Use this file for cross-cutting platform and delivery concerns.
 
 ## CI/CD Hardening
+
+Issue [#31](https://github.com/patex1987/golden-path-ecs-template/issues/31)
+owns the next concrete CI strategy wave: frontend/browser verification,
+Docker/Postgres e2e execution, and scalable workspace selection. The remaining
+items below are design inputs, not separately committed deliverables.
 
 - Define a dependency audit policy before making audit checks blocking. Decide severity thresholds, dev-dependency handling, exception workflow, and whether to use `npm audit`, GitHub Dependabot alerts, dependency review, or a combination.
 - Revisit GitHub Actions supply-chain hardening. CI-1 pins official actions by major version; future work may require exact SHA pins, allowlisted actions, internal mirrored actions, Dependabot updates for action versions, or policy-as-code checks.
@@ -30,5 +37,8 @@ Use `docs/plans/service-follow-up-tasks.md` for service/domain/API leftovers. Us
 
 - Revisit whether `ecs-infra` should split into multiple packages when shared constructs, environment stacks, deployment tooling, or multiple independently owned infra modules exist.
 - Keep CDK synth credential-free in pull-request CI where practical. If future CDK context lookups require AWS credentials, isolate that behavior in a separate deployment-oriented plan.
+- Continue laptop-driven `cdk diff`, `deploy`, smoke, and `destroy` while the AWS
+  learning stack is being proved. Do not make private deployment automation a
+  prerequisite for issues #37 or #38.
 - Design the private AWS deployment promotion workflow described in [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow). The public repository should remain credential-free; a private workflow should accept or approve an exact public commit SHA, re-run validation, pause behind a protected deployment environment, assume AWS roles through OIDC, and let CDK publish Docker image assets to the target account during deploy.
 - Replace the temporary public-CI `allowedIngressCidr=203.0.113.10/32` synth convention when the private promotion workflow owns environment-specific CDK configuration. Do not solve this by adding AWS credentials, account identifiers, deploy-role access, or real environment values to the public workflow.

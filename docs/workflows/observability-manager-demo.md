@@ -50,7 +50,7 @@ GraphQL operations:
 
 All four calls share one `X-Correlation-Id`, so they can be understood as one
 business workflow. They also share one demo `trace_id`, which simulates the
-frontend-to-backend trace propagation we want from the future React frontend.
+frontend-to-backend trace propagation implemented by `movie-reservation-web`.
 Each call still has its own `X-Request-Id`, because each HTTP request needs its
 own support/debug handle.
 

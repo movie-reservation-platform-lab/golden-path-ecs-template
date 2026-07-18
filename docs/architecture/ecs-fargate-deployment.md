@@ -39,28 +39,36 @@ flowchart TB
 
       subgraph workloadSubnet["Selected private isolated workload subnet: AZ A"]
         direction TB
-        task["Running Fargate task<br/>movie-reservation-service<br/>TCP port 3000<br/>no public IP"]
-        interfaceEndpoints["Interface VPC endpoints<br/>ECR API + ECR Docker<br/>CloudWatch Logs<br/>SSM Messages optional"]
+        subgraph task["Running Fargate task: 512 CPU / 1024 MiB, no public IP"]
+          direction LR
+          app["Essential app<br/>TCP 3000<br/>384 CPU / 640 MiB"]
+          adot["Nonessential ADOT<br/>128 CPU / 384 MiB<br/>health 13133"]
+          app -->|"OTLP/HTTP traces<br/>127.0.0.1:4318"| adot
+        end
+        interfaceEndpoints["Interface VPC endpoints<br/>ECR API + ECR Docker<br/>CloudWatch Logs + X-Ray<br/>SSM Messages optional"]
         s3Endpoint["S3 gateway endpoint"]
 
-        task -->|"HTTPS 443"| interfaceEndpoints
+        app -->|"HTTPS 443"| interfaceEndpoints
+        adot -->|"HTTPS 443"| interfaceEndpoints
         task -->|"image layers"| s3Endpoint
       end
 
-      standbySubnet["Second private isolated subnet: AZ B<br/>no task or endpoint ENIs in Wave 2"]
+      standbySubnet["Second private isolated subnet: AZ B<br/>no task or endpoint ENIs in the current demo"]
 
       igw -->|"HTTP 80<br/>restricted source CIDR"| alb
-      alb -->|"HTTP 3000<br/>application + health checks"| task
+      alb -->|"HTTP 3000<br/>application + health checks"| app
     end
 
-    ecr["Amazon ECR<br/>application image"]
+    ecr["Amazon ECR<br/>app + ADOT CDK assets"]
     s3["Amazon S3<br/>ECR image layers"]
-    logs["CloudWatch Logs<br/>application log group"]
+    logs["CloudWatch Logs<br/>app + ADOT log groups"]
+    xray["AWS X-Ray<br/>trace segments"]
     ssm["SSM Messages<br/>optional ECS Exec"]
 
     service -->|"maintains one task"| task
     interfaceEndpoints --> ecr
     interfaceEndpoints --> logs
+    interfaceEndpoints --> xray
     interfaceEndpoints -.->|"when ECS Exec is enabled"| ssm
     s3Endpoint --> s3
   end
@@ -71,8 +79,8 @@ flowchart TB
   classDef optional fill:#f5f5f5,stroke:#6b7280,color:#111827,stroke-dasharray: 5 5
 
   class igw,alb,interfaceEndpoints,s3Endpoint network
-  class cluster,service,task compute
-  class ecr,s3,logs awsService
+  class cluster,service,task,app,adot compute
+  class ecr,s3,logs,xray awsService
   class ssm optional
 ```
 
@@ -93,9 +101,10 @@ flowchart TB
 
     subgraph regionalServices["Regional AWS services"]
       direction LR
-      ecr["Amazon ECR<br/>CDK asset repository<br/>application image"]
+      ecr["Amazon ECR<br/>CDK asset repository<br/>app + ADOT images"]
       s3["Amazon S3<br/>ECR image layers"]
-      cloudwatch["CloudWatch Logs<br/>application log group<br/>7-day retention"]
+      cloudwatch["CloudWatch Logs<br/>app + ADOT log groups<br/>7-day retention"]
+      xray["AWS X-Ray<br/>trace segments"]
       ssm["SSM Messages<br/>ECS Exec channels"]
     end
 
@@ -103,9 +112,9 @@ flowchart TB
       direction LR
       cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo<br/>Container Insights disabled"]
       service["Fargate service<br/>desired count: 1<br/>deployment rollback enabled<br/>health grace: 60s"]
-      taskDefinition["Fargate task definition<br/>256 CPU units / 512 MiB<br/>app container: TCP 3000<br/>awslogs driver"]
+      taskDefinition["Fargate task definition<br/>512 CPU units / 1024 MiB<br/>essential app + nonessential ADOT<br/>separate awslogs drivers"]
       executionRole["Task execution role<br/>image pull + log delivery"]
-      taskRole["Task role<br/>application permissions<br/>+ ECS Exec when enabled"]
+      taskRole["Shared task role<br/>X-Ray writes<br/>+ ECS Exec when enabled"]
 
       cluster -->|"hosts"| service
       taskDefinition -->|"used by"| service
@@ -131,13 +140,14 @@ flowchart TB
       subgraph workloadSubnet["Selected private isolated workload subnet /24: AZ A"]
         direction TB
         isolatedRoute["Isolated route table<br/>VPC-local routes"]
-        task["Fargate task ENI<br/>movie-reservation-service<br/>TCP port 3000"]
+        task["Fargate task ENI<br/>app TCP 3000<br/>ADOT loopback 4318/13133"]
 
         subgraph endpointEnis["Private AWS-service access"]
           direction LR
           ecrApiEndpoint["ECR API<br/>interface endpoint"]
           ecrDockerEndpoint["ECR Docker<br/>interface endpoint"]
           logsEndpoint["CloudWatch Logs<br/>interface endpoint"]
+          xrayEndpoint["X-Ray<br/>interface endpoint<br/>write-only policy"]
           s3Endpoint["S3<br/>gateway endpoint"]
           ssmEndpoint["SSM Messages<br/>interface endpoint<br/>optional"]
         end
@@ -147,10 +157,11 @@ flowchart TB
         task -->|"HTTPS 443<br/>image manifest"| ecrDockerEndpoint
         task -->|"image layers"| s3Endpoint
         task -->|"HTTPS 443<br/>application logs"| logsEndpoint
+        task -->|"HTTPS 443<br/>trace writes"| xrayEndpoint
         task -.->|"HTTPS 443<br/>enableEcsExec=true"| ssmEndpoint
       end
 
-      standbySubnet["Second private isolated subnet /24: AZ B<br/>created for symmetric VPC topology<br/>unused by Wave 2 workloads and endpoints"]
+      standbySubnet["Second private isolated subnet /24: AZ B<br/>created for symmetric VPC topology<br/>unused by current workloads and endpoints"]
 
       subgraph securityGroups["Security groups"]
         direction LR
@@ -167,6 +178,7 @@ flowchart TB
       endpointSg -. "attached to" .-> ecrApiEndpoint
       endpointSg -. "attached to" .-> ecrDockerEndpoint
       endpointSg -. "attached to" .-> logsEndpoint
+      endpointSg -. "attached to" .-> xrayEndpoint
       endpointSg -. "attached when enabled" .-> ssmEndpoint
     end
 
@@ -177,11 +189,13 @@ flowchart TB
     ecrDockerEndpoint --> ecr
     s3Endpoint --> s3
     logsEndpoint --> cloudwatch
+    xrayEndpoint --> xray
     ssmEndpoint -.-> ssm
 
     executionRole -. "permits image pull" .-> ecr
     executionRole -. "permits log writes" .-> cloudwatch
     taskRole -. "permits Exec when enabled" .-> ssm
+    taskRole -. "permits two write actions" .-> xray
   end
 
   classDef network fill:#eaf4ff,stroke:#2563eb,color:#111827
@@ -190,9 +204,9 @@ flowchart TB
   classDef security fill:#fff1f2,stroke:#be123c,color:#111827
   classDef optional fill:#f5f5f5,stroke:#6b7280,color:#111827,stroke-dasharray: 5 5
 
-  class igw,publicRoute,alb,listener,targetGroup,isolatedRoute,ecrApiEndpoint,ecrDockerEndpoint,logsEndpoint,s3Endpoint network
+  class igw,publicRoute,alb,listener,targetGroup,isolatedRoute,ecrApiEndpoint,ecrDockerEndpoint,logsEndpoint,xrayEndpoint,s3Endpoint network
   class cluster,service,taskDefinition,executionRole,taskRole,task compute
-  class ecr,s3,cloudwatch,ssm awsService
+  class ecr,s3,cloudwatch,xray,ssm awsService
   class albSg,serviceSg,endpointSg security
   class ssmEndpoint optional
 ```
@@ -213,9 +227,10 @@ flowchart TB
   duplicate endpoint set before high availability is required. Target-group
   ALB cross-zone load balancing is explicitly enabled so both nodes can route
   to the healthy target in the selected workload AZ.
-- **No-NAT service access:** ECR API, ECR Docker, CloudWatch Logs, and optional
-  SSM Messages use interface endpoint ENIs. ECR image layers use the S3 gateway
-  endpoint attached only to the selected workload subnet's route table.
+- **No-NAT service access:** ECR API, ECR Docker, CloudWatch Logs, X-Ray, and
+  optional SSM Messages use interface endpoint ENIs. ECR image layers use the
+  S3 gateway endpoint attached only to the selected workload subnet's route
+  table.
 - **ECS control resources:** the cluster, service, task definition, and IAM roles
   are regional resources. The running Fargate task is the part placed in the
   selected VPC subnet.
@@ -224,9 +239,20 @@ flowchart TB
   `execute-command` still needs separate identity-side IAM permission.
 - **Health and deployment:** the target group calls `GET /health` every 30
   seconds. The ECS service keeps one desired task, gives startup a 60-second
-  grace period, and rolls back failed deployments.
+  grace period, and rolls back failed deployments. ADOT has its own non-gating
+  `/healthcheck` command and restart policy; collector failure does not make the
+  app container or task unhealthy.
+- **Telemetry boundary:** the application emits standard OTLP and W3C context.
+  ADOT owns AWS credentials and X-Ray translation. There are no task security
+  group rules for ports 4318 or 13133 because both listeners use task loopback.
+- **Trace privacy:** the X-Ray exporter keeps `index_all_attributes: false` and
+  configures no indexed attributes. The current `enduser.id` span attribute is
+  nevertheless stable/linkable and maps to X-Ray's dedicated `user` field; the
+  indexing setting does not anonymize it. The ECS demo currently uses a fixed
+  fake user. Before production auth, revisit whether traces need this field and
+  prefer a keyed HMAC/pseudonym over a plain enumerable hash when they do.
 
-Both diagrams show the fixed Wave 2 compromise represented by `PlatformConfig`:
+Both diagrams show the fixed demo compromise represented by `PlatformConfig`:
 `vpcMaxAzs` is `2`, while `workloadAzCount` is `1`. These values are not exposed
 through CDK context. Security groups use CDK's default outbound allowance; the
 rules shown above are the explicit inbound rules.

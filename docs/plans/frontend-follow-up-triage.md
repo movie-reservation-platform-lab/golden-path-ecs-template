@@ -1,102 +1,79 @@
 # Frontend Follow-Up Triage
 
-Date: 2026-06-08
+Last reviewed: 2026-07-17
 
-## Summary
+## Current State
 
-The next roadmap deliverable should remain the React + Vite frontend
-demonstrator. The only task that should happen before frontend implementation is
-adopting the existing `observability_demo_plus_frontend` spike safely, because
-that branch was created before the finalized local observability work landed.
+Issue [#23](https://github.com/patex1987/golden-path-ecs-template/issues/23)
+is delivered. The repository now has a React/Vite workspace with:
 
-The frontend branch contains useful UI work, but it is not a clean base:
+- a feature-first domain/application/adapters/UI structure;
+- a GraphQL client and runtime response parsers;
+- bounded reservation polling and stale-request cancellation;
+- trace, correlation, and request header propagation;
+- user-facing error mapping and focused Vitest coverage;
+- a separate credential-free GitHub Actions web check.
 
-- `observability_demo_plus_frontend` is two commits ahead of the shared base.
-- Current `main` now includes the finalized D7 observability work.
-- The UI commit is mostly additive frontend code.
-- The earlier branch commit carries broad backend observability rewrites that
-  overlap with the finalized D7 work.
+The delivered implementation records are:
+
+- [`d8a-rebase-frontend-spike.md`](delivered/d8a-rebase-frontend-spike.md);
+- [`movie-reservation-web-orchestrator-refactor.md`](delivered/movie-reservation-web-orchestrator-refactor.md);
+- [`movie-reservation-web-clean-architecture-refactor.md`](delivered/movie-reservation-web-clean-architecture-refactor.md);
+- [`movie-reservation-web-stabilization-review-findings.md`](delivered/movie-reservation-web-stabilization-review-findings.md).
 
 ## Recommended Order
 
-1. Do #23 before more frontend implementation.
-2. Do #24 to establish the frontend workspace and GraphQL/observability client.
-3. Do #25 and #26 together or back-to-back so the customer booking workflow and
-   external observability verification are built as one demo experience.
-4. Do #27 before closing the parent D8 issue.
-5. Defer #28, #29, #30, #31, and #32 until the first frontend workflow proves
-   which backend, observability, and CI gaps matter in practice.
+1. Reconcile #24 with the delivered baseline. Close it if its workspace/client
+   acceptance criteria are already met; otherwise implement only the remaining
+   gap.
+2. Reconcile #25 with the existing reservation workflow, then finish the
+   customer-facing product and state gaps.
+3. Complete #26 by verifying propagation and the end-to-end local observability
+   workflow outside the customer UI.
+4. Complete #27 with final docs, accessibility/responsive checks, and at least
+   one Playwright booking smoke test.
+5. Close parent issue #5 only after the product requirements are met.
 
-## Created Issues
+Use
+[`movie-reservation-frontend-product-requirements.md`](movie-reservation-frontend-product-requirements.md)
+as the D8 product and UX acceptance bar.
 
-### Frontend D8 Split
+## Open D8 Issues
 
-- [#23 D8a: Rebase frontend spike onto finalized local observability](https://github.com/patex1987/golden-path-ecs-template/issues/23)
 - [#24 D8b: Add frontend workspace foundation and GraphQL client](https://github.com/patex1987/golden-path-ecs-template/issues/24)
 - [#25 D8c: Build reservation workflow UI with polling states](https://github.com/patex1987/golden-path-ecs-template/issues/25)
 - [#26 D8d: Verify frontend observability propagation and demo workflow](https://github.com/patex1987/golden-path-ecs-template/issues/26)
 - [#27 D8e: Add frontend verification, docs, and CI wiring](https://github.com/patex1987/golden-path-ecs-template/issues/27)
 
-### Related Follow-Ups
+The issue descriptions predate the broad #23 delivery, so review the actual
+code before implementing them. Do not duplicate already-delivered workspace,
+client, workflow, or CI work merely to match the old issue split.
 
-- [#28 Service/API: Make reservation read outcomes explicit for frontend state](https://github.com/patex1987/golden-path-ecs-template/issues/28)
-- [#29 Service/API: Move catalog read model assembly into application query layer](https://github.com/patex1987/golden-path-ecs-template/issues/29)
-- [#30 Observability: Build production dashboard and saturation follow-up](https://github.com/patex1987/golden-path-ecs-template/issues/30)
-- [#31 CI: Add post-D8 frontend and Docker/Postgres e2e check strategy](https://github.com/patex1987/golden-path-ecs-template/issues/31)
-- [#32 Service/API: Add idempotency handling for reservation commands](https://github.com/patex1987/golden-path-ecs-template/issues/32)
+The `demo-multi-service-observability` branch also contains an agent client,
+agent workflow panel, and reserved-seat UI changes that are not on current
+`main`. Reconcile those changes through the separate
+[`distributed observability adoption plan`](distributed-observability-demo-platform.md).
+They may satisfy parts of #25 through #27, but the agent and technical
+diagnostics must remain behind an explicit local/demo mode rather than becoming
+the normal D8 customer UI.
 
-## Priority Decisions
+## Related Follow-Ups
 
-### Do Before Frontend
+- [#28](https://github.com/patex1987/golden-path-ecs-template/issues/28): make protected reservation read outcomes explicit.
+- [#29](https://github.com/patex1987/golden-path-ecs-template/issues/29): move catalog read-model assembly into the application query layer and address frontend overfetch.
+- [#31](https://github.com/patex1987/golden-path-ecs-template/issues/31): add scalable CI, Playwright, and Docker/Postgres e2e strategy.
+- [#32](https://github.com/patex1987/golden-path-ecs-template/issues/32): add reservation command idempotency before production-like retries.
 
-- #23 only. This keeps the existing spike from undoing finalized D7
-  observability work.
+Create a separate GraphQL code-generation issue when D8 resumes. It should
+decide generated artifact policy, schema-drift validation, and whether generated
+runtime validators replace the current hand-written boundary parsers.
 
-### Do During Frontend
+## Deferred Until Needed
 
-- #24, #25, #26, and #27. These are the real D8 implementation path.
-- Use
-  [movie-reservation-frontend-product-requirements.md](movie-reservation-frontend-product-requirements.md)
-  as the product and UX bar: the final D8 app should be a customer-facing movie
-  booking app, not an observability console.
-- #27 should include at least one Playwright browser smoke test before the D8
-  parent is closed. The first useful smoke test should exercise the booking
-  workflow at a high level and preserve Playwright trace/report artifacts so the
-  frontend request path can be reviewed outside the customer UI.
-
-### Do Soon After Frontend
-
-- #28 if the UI makes the current `null` read semantics confusing.
-- #31 for the next CI strategy wave after the basic web workspace job exists:
-  affected/path-filtered workspace checks, Playwright browser tests, Docker
-  image/runtime choices, and Docker/Postgres e2e checks.
-- #32 before public or production-like frontend use, because retrying clients
-  need idempotent command behavior.
-- Add a D8f frontend GraphQL codegen follow-up when #24 through #27 are close
-  enough to close. That issue should evaluate generated operation/result types,
-  schema-drift CI, and whether runtime response validation should be generated
-  with Zod or an equivalent library. Prefer generated validators or the current
-  hand-written boundary parsers over manually maintaining duplicate GraphQL
-  types and hand-written Zod schemas for the same contract.
-- Add a follow-up for frontend containerization once the D8 workflow is stable:
-  Docker should support repeatable local/Compose demos, while production can
-  still choose between static hosting and a containerized runtime.
-
-### Defer Until Need Is Concrete
-
-- Revisit frontend stylesheet organization after D8 or when a second page,
-  feature, or repeated UI primitive appears. The current single
-  `movie-reservation-web/src/styles.css` is acceptable for the first workflow,
-  but the next maintainability step should split global concerns from
-  feature-owned styles: for example `src/app/global.css` for tokens, reset,
-  body, focus, and shell primitives, plus a reservation feature stylesheet under
-  `src/features/movie-reservations/ui/`. Consider per-component CSS or CSS
-  Modules only when class ownership becomes hard to reason about.
-- #29 until the first frontend pass clarifies the catalog read shape. The
-  current frontend already proved one important concern: loading all nested
-  seats for all screenings on initial catalog load is not the right
-  production-shaped read model. #29 or a child plan should decide whether the
-  frontend gets metadata-first catalog queries, a selected-screening seat query,
-  pagination/date windows, or a dedicated application-layer catalog read model.
-- #30 until the frontend demo has proven local trace/log correlation and the
-  project is preparing for more production-like ECS operations.
+- Frontend containerization for repeatable Compose demos. Production AWS hosting
+  may still use static S3/CloudFront delivery.
+- Stylesheet decomposition after a second page, feature, or repeated component
+  pattern makes ownership unclear.
+- Recommendations, agent workflows, OIDC, and scenario controls are not part of
+  D8 acceptance. Existing demo-branch implementations belong to the parallel
+  distributed-demo adoption workstream.

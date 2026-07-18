@@ -20,8 +20,8 @@ requests that can be inspected in browser network tools, Playwright reports,
 Grafana, Tempo, Loki, and Prometheus. It should not display trace ids,
 correlation ids, request ids, or GraphQL exchange logs as normal customer UI.
 
-#23 may port the existing spike as a technical baseline. The final D8 frontend
-acceptance should use this document as the product and UX bar.
+Issue #23 delivered the technical frontend baseline. The remaining D8 work in
+#24 through #27 should use this document as the product and UX acceptance bar.
 
 ## 2. Goals
 
@@ -55,6 +55,9 @@ acceptance should use this document as the product and UX bar.
   visuals.
 - Do not add recommendations, MCP, agent workflows, OIDC, service discovery, or
   fault injection as part of the D8 customer booking UI.
+- A separate local/demo mode may expose agent workflows and technical
+  identifiers for the distributed observability demonstration. It must be
+  explicitly enabled and must not change the default customer experience.
 - Do not depend on external image services for the initial visual treatment.
 
 ## 4. Current State
@@ -81,23 +84,24 @@ Important API caveat:
   reservation already owns a requested seat. The frontend should treat rejection
   as a valid booking outcome, not as a UI bug.
 
-The existing spike on `observability_demo_plus_frontend` has useful technical
-pieces:
+The delivered `movie-reservation-web` baseline now includes:
 
-- React/Vite workspace scaffolding;
-- GraphQL request helper;
-- trace/correlation/request id propagation helper;
-- reservation workflow state;
-- movie, screening, seat, and reservation components.
+- React/Vite workspace scaffolding and credential-free CI coverage;
+- a feature-first domain/application/adapters/UI structure;
+- a GraphQL request helper with runtime response parsing;
+- trace/correlation/request id propagation;
+- bounded reservation polling and cancellation behavior;
+- movie, screening, seat, reservation, and diagnostics components.
 
-However, the spike's product shape is closer to a "Reservation control room":
+The remaining product gap is that the baseline still behaves like a technical
+demonstrator and includes a customer-visible diagnostics panel:
 
 - it foregrounds tracing diagnostics;
 - it displays trace, correlation, request, and GraphQL exchange information;
 - it uses observability language as visible UI.
 
-That is acceptable as source material for #23, but not as the final D8 product
-experience.
+That was acceptable for the delivered #23 baseline, but it is not the final D8
+product experience.
 
 The observability UI already exists outside the app:
 
@@ -120,16 +124,16 @@ The observability UI already exists outside the app:
   marketing page.
 - Future recommendations and agent-assisted flows should extend the movie
   product experience.
-- #23 can remain a clean spike transplant, with the production-like UX hardening
-  happening in follow-up D8 work.
+- Preserve the delivered #23 technical baseline while #24 through #27 complete
+  the production-like UX and verification work.
 
 ### Assumptions
 
 - D8 can use local static poster-like assets mapped in frontend code without
   changing the GraphQL schema.
 - A one-page flow is enough for the first D8 booking experience.
-- Generated frontend GraphQL types will be added after #23 and should not block
-  the product requirements in this document.
+- Generated frontend GraphQL types are a follow-up and should not block the
+  product requirements in this document.
 - The authenticated user context can remain implicit or lightly represented; the
   customer app does not need an account-management surface in D8.
 - Rejected reservations are useful production-like conflict outcomes and should
@@ -150,7 +154,7 @@ Recommended default answers:
   planned.
 - Use committed local poster-like assets for seeded movies if practical;
   otherwise use high-quality local CSS poster art as a short-term fallback.
-- Decide generated artifact policy in the codegen follow-up, not in #23.
+- Decide generated artifact policy in the codegen follow-up.
 
 ## 6. Proposed Design
 
@@ -321,8 +325,10 @@ technical ids.
   - Teaches the wrong product boundary: observability internals become customer
     UI.
 - Decision:
-  - Rejected as the final D8 product experience. Acceptable only as temporary
-    source material during #23 transplant.
+  - Rejected as the final D8 product experience. It remains temporary technical
+    UI in the delivered #23 baseline and must be removed or hidden before D8
+    closes. A separately enabled local/demo mode may retain technical UI for the
+    distributed observability workflow.
 
 ### Alternative B: Customer Movie Booking App
 
@@ -331,7 +337,7 @@ technical ids.
   - Keeps observability as a real platform concern without making it the UI.
   - Gives recommendation and agent features a natural future product surface.
 - Cons:
-  - Requires reshaping the spike UI after #23.
+  - Requires reshaping the delivered demonstrator UI.
   - Requires separate verification discipline for observability headers and
     traces.
 - Decision:
@@ -403,16 +409,16 @@ transitions for frontend product polish.
 
 ## 12. Implementation Steps
 
-1. Preserve #23 branch-hygiene scope.
-   - Change: Port the useful spike workspace without treating its visible
-     diagnostics as final product UI.
+1. Start from the delivered #23 baseline.
+   - Change: Preserve the working workspace, clean-architecture boundaries,
+     GraphQL client, polling behavior, and observability propagation while
+     treating visible diagnostics as temporary demo UI.
    - Files/modules likely affected:
-     - `docs/plans/d8a-rebase-frontend-spike.md`
+     - `docs/plans/delivered/d8a-rebase-frontend-spike.md`
      - `movie-reservation-web/**`
-   - Notes: #23 can temporarily include the spike's diagnostics panel because
-     the issue is about a clean transplant.
+   - Notes: Do not rebuild the delivered baseline to satisfy stale issue text.
    - Verification:
-     - Final #23 notes identify that product UX hardening remains required.
+     - Existing web checks remain green before product changes begin.
 
 2. Reframe the app shell.
    - Change: Rename visible app framing away from "control room" and toward a
@@ -431,9 +437,9 @@ transitions for frontend product polish.
      `traceparent`, GraphQL operation log, and exchange-log panels from normal
      UI.
    - Files/modules likely affected:
-     - `movie-reservation-web/src/features/movie-reservations/diagnostics-panel.tsx`
-     - `movie-reservation-web/src/features/movie-reservations/movie-reservation-demo.tsx`
-     - `movie-reservation-web/src/shared/observability/**`
+     - `movie-reservation-web/src/features/movie-reservations/ui/diagnostics-panel.tsx`
+     - `movie-reservation-web/src/features/movie-reservations/ui/movie-reservation-demo.tsx`
+     - `movie-reservation-web/src/platform/observability/**`
    - Notes: Keep internal propagation helpers and tests.
    - Verification:
      - UI does not display technical observability ids.
@@ -453,9 +459,9 @@ transitions for frontend product polish.
 5. Implement customer-facing booking state copy.
    - Change: Map backend reservation states into customer copy and actions.
    - Files/modules likely affected:
-     - `movie-reservation-web/src/features/movie-reservations/status-badge.tsx`
-     - `movie-reservation-web/src/features/movie-reservations/reservation-panel.tsx`
-     - `movie-reservation-web/src/features/movie-reservations/types.ts`
+     - `movie-reservation-web/src/features/movie-reservations/ui/status-badge.tsx`
+     - `movie-reservation-web/src/features/movie-reservations/ui/reservation-panel.tsx`
+     - `movie-reservation-web/src/features/movie-reservations/domain/movie-reservation.ts`
    - Notes: Raw enum names can remain in TypeScript logic and tests.
    - Verification:
      - UI does not show raw `REQUESTED`, `PROCESSING`, `CONFIRMED`,
@@ -522,8 +528,7 @@ transitions for frontend product polish.
   - `npm -w movie-reservation-web run check`;
   - `npm -w movie-reservation-service run check` when backend contract safety is
     relevant;
-  - `git diff --check`;
-  - Prettier for touched docs.
+  - `git diff --check`.
 
 ## 14. Rollout / Migration Plan
 
@@ -531,11 +536,12 @@ This is a local frontend product hardening path.
 
 Rollout:
 
-1. Land #23 as a clean transplant.
-2. Use this document to guide #24 through #27 frontend hardening.
-3. Remove or hide visible diagnostics from normal UI before closing D8.
-4. Verify observability through external tools and reports.
-5. Add recommendations or agent-assisted flows only after the customer booking
+1. Use the delivered #23 baseline as the starting point.
+2. Reconcile #24 and #25 with code already delivered before implementing gaps.
+3. Use this document to guide #24 through #27 frontend hardening.
+4. Remove or hide visible diagnostics from normal UI before closing D8.
+5. Verify observability through external tools and reports.
+6. Add recommendations or agent-assisted flows only after the customer booking
    baseline is solid.
 
 Rollback:
@@ -598,8 +604,8 @@ Constraints:
   GraphQL exchange logs in normal UI.
 - Preserve observability propagation through headers and stable GraphQL
   operation names.
-- Keep #23 as a clean transplant if working on issue #23; apply this document as
-  the product bar for D8 hardening follow-ups.
+- Preserve the delivered #23 technical baseline and apply this document as the
+  product bar for remaining D8 work.
 - Do not change the backend GraphQL schema for poster/media fields in D8.
 - Use local poster-like frontend assets or local art.
 - Map backend reservation states to customer-facing copy.
@@ -609,7 +615,7 @@ Constraints:
 Relevant files/modules:
 - movie-reservation-web/**
 - movie-reservation-service/schema.gql
-- docs/plans/d8a-rebase-frontend-spike.md
+- docs/plans/delivered/d8a-rebase-frontend-spike.md
 - docs/plans/distributed-observability-demo-platform.md
 - docs/workflows/local-observability.md
 - docs/architecture/observability-log-contract.md
@@ -618,7 +624,6 @@ Expected verification commands:
 - npm -w movie-reservation-web run check
 - npm -w movie-reservation-service run check
 - git diff --check
-- node_modules/.bin/prettier docs/plans/movie-reservation-frontend-product-requirements.md docs/plans/d8a-rebase-frontend-spike.md docs/plans/distributed-observability-demo-platform.md docs/index.md --check
 
 Expected manual/browser verification:
 - Customer can complete a booking flow.
