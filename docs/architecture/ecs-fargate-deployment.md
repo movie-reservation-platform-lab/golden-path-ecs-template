@@ -252,6 +252,14 @@ flowchart TB
   fake user. Before production auth, revisit whether traces need this field and
   prefer a keyed HMAC/pseudonym over a plain enumerable hash when they do.
 
+Known telemetry debt is tracked in
+[`platform-follow-up-tasks.md`](../plans/platform-follow-up-tasks.md#telemetry-platform-debt).
+The sidecar is intentionally a first ECS proof, not a golden path to stamp onto
+every future service. The app also intentionally fails open when telemetry is
+unavailable, so platform readiness must stay separate from telemetry-delivery
+health. That means a broken collector can leave the service running while traces
+or metrics are missing until a later telemetry-path alerting slice exists.
+
 Both diagrams show the fixed demo compromise represented by `PlatformConfig`:
 `vpcMaxAzs` is `2`, while `workloadAzCount` is `1`. These values are not exposed
 through CDK context. Security groups use CDK's default outbound allowance; the

@@ -24,6 +24,7 @@ Current documents:
 - [golden-path.md](architecture/golden-path.md) - the opinionated service path this template should provide.
 - [movie-reservation-domain-vocabulary.md](architecture/movie-reservation-domain-vocabulary.md) - shared domain vocabulary for movie providers, auditoriums, screenings, seats, reservation requests, and reservations.
 - [observability-log-contract.md](architecture/observability-log-contract.md) - structured JSON log field contract, id semantics, and trace/correlation/request boundaries.
+- [otel-collector-gateway-options.md](architecture/otel-collector-gateway-options.md) - non-binding ECS discovery, load-balancing, topology, availability, and IAM alternatives for a future shared OpenTelemetry collector gateway.
 - [platform-api.md](architecture/platform-api.md) - future platform-facing API and CDK construct ideas.
 - [service-di-composition.md](architecture/service-di-composition.md) - service runtime profile, dependency injection composition, and provider wiring diagrams.
 

@@ -1,10 +1,51 @@
 # Platform Follow-up Tasks
 
-Last reviewed: 2026-07-17
+Last reviewed: 2026-07-20
 
 This file tracks platform, CI/CD, infrastructure workflow, and delivery-system follow-ups that are intentionally outside the current implementation slice.
 
 Use `docs/plans/service-follow-up-tasks.md` for service/domain/API leftovers. Use this file for cross-cutting platform and delivery concerns.
+
+## Telemetry Platform Debt
+
+The current ECS trace path intentionally puts one ADOT collector sidecar in each
+application task. That is acceptable for issue #37 because it proves one
+private OTLP-to-X-Ray path with small blast radius, but it is not the long-term
+microservice topology. Copying that shape into every service would multiply
+collector CPU/memory, duplicate config, keep AWS X-Ray permissions on every app
+task role, and make telemetry policy drift service by service.
+
+- Design a dedicated OpenTelemetry collector ECS service or gateway before the
+  platform hosts multiple independently deployed application services. The
+  [gateway options note](../architecture/otel-collector-gateway-options.md)
+  records the Cloud Map, internal NLB, Service Connect, internal ALB, and hybrid
+  agent/gateway alternatives without selecting one. The follow-up should define
+  discovery/DNS, security-group ingress, task sizing, horizontal scaling,
+  Availability Zone placement, load balancing, deployment safety, and whether
+  any per-task agent remains useful for local enrichment.
+- Move X-Ray/telemetry backend credentials out of application task roles when a
+  shared collector service exists. Today the app and sidecar share the same ECS
+  task role, so the app can technically call the two X-Ray write APIs granted
+  for ADOT.
+- Keep the current app availability policy explicit: telemetry fails open. The
+  app must not fail startup, `/health`, or platform readiness just because the
+  collector, X-Ray endpoint, or telemetry backend is unavailable. The accepted
+  cost is missing spans and metrics - we may be flying blind while the app is
+  still serving traffic.
+- Add telemetry-path health signals after the collector topology is decided:
+  collector task health, restart count, exporter errors, queue/drop counters,
+  end-to-end trace smoke, and alerts/SLOs for telemetry delivery. Do not hide
+  telemetry outages inside application dependency checks.
+- Define an X-Ray annotation allowlist before depending on searchable trace
+  fields in AWS. The current ADOT config keeps `index_all_attributes: false`
+  and has no `indexed_attributes`, so generic OTel attributes remain X-Ray
+  metadata rather than searchable annotations. Any allowlist should use
+  low-cardinality, nonsecret fields only. Do not index request IDs, correlation
+  IDs, trace IDs, user IDs, reservation IDs, raw GraphQL variables, headers, or
+  tokens.
+- Revisit `enduser.id` before production authentication. It maps to X-Ray's
+  dedicated `user` field independently of generic annotation indexing, so the
+  current fixed demo user does not establish a production privacy policy.
 
 ## CI/CD Hardening
 
