@@ -682,7 +682,8 @@ app -> sidecar agent -> shared collector gateway
 
 Preserve that option by keeping the app endpoint-driven and by keeping AWS
 exporters/IAM outside the app. Do not create a speculative gateway/sidecar CDK
-abstraction in #37.
+abstraction in #37. The concrete follow-up debt is tracked in
+[`platform-follow-up-tasks.md`](platform-follow-up-tasks.md#telemetry-platform-debt).
 
 Gateway-dependent follow-ups include:
 
@@ -692,7 +693,10 @@ Gateway-dependent follow-ups include:
 - tail sampling;
 - persistent queue/durable transport choices;
 - collector credential isolation from app tasks;
-- telemetry failure alerts and SLOs.
+- telemetry failure alerts and SLOs;
+- an X-Ray `indexed_attributes` allowlist for low-cardinality, nonsecret fields
+  if AWS trace search needs more than X-Ray's built-in service, status, and user
+  fields.
 
 ## 7. Alternatives Considered
 
