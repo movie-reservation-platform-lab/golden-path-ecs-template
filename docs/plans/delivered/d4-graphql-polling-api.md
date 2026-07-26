@@ -1,5 +1,7 @@
 # Implementation Plan: D4 GraphQL Polling API
 
+> Status: delivered by issue #1 / PR #13. Preserved as implementation history.
+
 ## 1. Summary
 
 Add the first movie reservation GraphQL polling API on top of the existing movie reservation domain, auth context, and in-memory repository. The recommended approach is test-first at the GraphQL boundary, then small application/repository additions to support the resolver without moving business rules into NestJS.

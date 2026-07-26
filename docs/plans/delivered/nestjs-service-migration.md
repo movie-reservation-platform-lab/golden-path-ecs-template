@@ -1,5 +1,8 @@
 # Implementation Plan: NestJS Service Migration
 
+> Status: delivered before the current issue-numbered roadmap. Preserved as
+> implementation history.
+
 ## 1. Summary
 
 Convert `service/` from the current Fastify-style application into a NestJS application that follows clean architecture from the beginning.

@@ -1,5 +1,7 @@
 # Implementation Plan: GitHub Actions CI Foundation
 
+> Status: delivered by issue #14 / PR #15. Preserved as implementation history.
+
 ## 1. Summary
 
 Add the first CI automation for this repository using GitHub Actions. The recommended approach is a small pull-request and main-branch workflow that installs dependencies with `npm ci`, runs visible check jobs for code quality, service behavior, and infrastructure, and synthesizes the CDK app without deploying anything.
