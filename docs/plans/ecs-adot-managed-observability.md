@@ -4,8 +4,9 @@
 > This document is background material, not an executable implementation
 > handoff. Issue #37 is delivered; its historical plan lives in
 > [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
-> Before implementing #38, extract a focused CloudWatch/AMP/Managed Grafana plan
-> from the still-relevant sections below.
+> The focused #38 implementation handoff now lives in
+> [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
+> Use the still-relevant sections below only as background.
 
 Status update, 2026-07-26:
 

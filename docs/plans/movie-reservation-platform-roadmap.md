@@ -79,10 +79,11 @@ ADOT/X-Ray baseline with bounded application and ECS metrics, export them to
 CloudWatch and Amazon Managed Service for Prometheus, then connect Amazon
 Managed Grafana and build the first useful dashboard.
 
-Create a focused #38 implementation plan before changing CDK or collector
-behavior. The smallest first slice should prove CloudWatch metrics from the
-existing in-memory service before adding AMP remote write and Managed Grafana
-dashboarding.
+The focused three-PR implementation plan is
+[`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
+The first slice proves CloudWatch metrics from the existing in-memory service,
+the second adds AMP remote write and ECS metrics, and the third adds Managed
+Grafana and the initial dashboard.
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).
