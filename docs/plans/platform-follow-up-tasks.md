@@ -1,6 +1,6 @@
 # Platform Follow-up Tasks
 
-Last reviewed: 2026-07-20
+Last reviewed: 2026-07-23
 
 This file tracks platform, CI/CD, infrastructure workflow, and delivery-system follow-ups that are intentionally outside the current implementation slice.
 
@@ -46,6 +46,11 @@ task role, and make telemetry policy drift service by service.
 - Revisit `enduser.id` before production authentication. It maps to X-Ray's
   dedicated `user` field independently of generic annotation indexing, so the
   current fixed demo user does not establish a production privacy policy.
+- Add Renovate coverage for the pinned ADOT collector Docker base image. Keep
+  the Dockerfile pinned by both release tag and immutable digest, but have
+  Renovate open manual-review PRs for new ADOT releases. Each update should run
+  `npm -w ecs-infra run validate:adot-image`, infra tests, CDK synth, and a
+  deployed X-Ray smoke check before updating the Dockerfile verification note.
 
 ## CI/CD Hardening
 
@@ -65,7 +70,15 @@ items below are design inputs, not separately committed deliverables.
   CI-managed Postgres service, and Docker-in-Docker style setups for CI systems
   where the job itself runs inside a container. Keep this out of required CI
   until the job is stable enough not to make normal PR checks flaky.
-- Design deployed system/smoke tests for dev, staging, and production-like environments. These may become deployment quality gates, rollback monitors, or operational smoke checks.
+- Revisit the `ecs-infra` Jest `maxWorkers: 1` cap after the CDK assertion and
+  shell smoke suites are stable. Identify the worker shutdown issue, then either
+  restore parallel Jest workers for pure CDK tests or split shell validation
+  into separate CI steps so it does not constrain assertion-test parallelism.
+- Design deployed system/smoke tests for dev, staging, and production-like
+  environments. These may become deployment quality gates, rollback monitors,
+  or operational smoke checks. If these checks grow beyond the current X-Ray
+  helper, consider a dedicated root-level black-box e2e/smoke package that knows
+  deployment endpoints and public contracts, not service internals.
 - Revisit path filters, docs-only shortcuts, and fast non-production override pipelines once CI runtime affects developer experience. Consider playground/dev-stage workflows that trade broad validation for quick iteration outside production.
 - Revisit required-check management if the list of GitHub Actions jobs changes often. A future aggregate `ci-success` job may make branch protection easier to maintain.
 - Revisit Node version matrix testing only if the project commits to supporting multiple Node runtime versions.
