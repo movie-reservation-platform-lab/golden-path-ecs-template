@@ -1,4 +1,26 @@
-# Implementation Plan: ECS ADOT Managed Observability
+# Umbrella Design: ECS ADOT Managed Observability
+
+> **Issue #37 implementation notice:**
+> [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md) is the source of truth
+> for the current branch. This document is an umbrella design retained mainly
+> for #38 and later background. Do not implement #37 from sections below. Where
+> the documents differ, the focused #37 plan takes precedence.
+
+Status update, 2026-07-17:
+
+- Wave 1 failure injection and Wave 2 ECS backend skeleton are delivered.
+- The Wave 2 stack was deployed successfully from a laptop and destroyed.
+- [Issue #37](https://github.com/patex1987/golden-path-ecs-template/issues/37)
+  is the current slice: ADOT collector sidecar and X-Ray traces. Its focused
+  implementation plan is
+  [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md).
+- [Issue #38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
+  follows with CloudWatch metrics, AMP, and Amazon Managed Grafana.
+- The AWS observability slices use the existing in-memory service. A Postgres
+  sidecar is no longer part of this plan. RDS and deployment-time migrations via
+  a separate ECS `RunTask` remain under issue #7.
+- CDK deployments remain laptop-driven. The private promotion workflow from ADR
+  015 is a later platform task.
 
 ## 1. Summary
 
@@ -16,11 +38,10 @@ Also add demo-only reservation failure injection so roughly 40% of reservation
 requests fail as a production-looking `unexpected-error`. The goal is an
 on-call style investigation scenario, not a clearly labelled demo fault.
 
-Recommended first slice: build a `demo` CDK stack using the current service
-container, CDK Docker image assets, a public ALB, private Fargate tasks without
-NAT, a Postgres sidecar container, one app container, one custom ADOT sidecar
-container, CloudWatch logs, X-Ray, an AMP workspace, and a Managed Grafana
-workspace. Keep RDS, production OIDC, full CI/CD deployment automation, and the
+Recommended next slice: extend the delivered `demo` CDK stack with one custom
+ADOT sidecar container and export the current in-memory service's traces to
+X-Ray. Add CloudWatch metrics, AMP, and Managed Grafana in the following issue.
+Keep RDS, production OIDC, full CI/CD deployment automation, and the
 multi-service agent/MCP infrastructure as later slices.
 
 Recommended follow-up slice: add CI observability for GitHub Actions with a
@@ -37,8 +58,8 @@ GitHub runners and do not ship full GitHub job logs into AWS.
 - Deploy an ECS/Fargate service behind an Application Load Balancer.
 - Use Option C for the first AWS network path: public ALB, private Fargate
   tasks, VPC endpoints for AWS service access, and no NAT Gateway.
-- Run demo persistence as a Postgres sidecar in the same Fargate task rather
-  than using RDS.
+- Keep the managed-observability slices on the existing in-memory composition
+  profile; do not couple telemetry delivery to database work.
 - Configure `/health` as the ALB target health check path.
 - Keep app logs as JSON stdout routed through the ECS `awslogs` driver.
 - Export traces from the existing Node OpenTelemetry SDK to ADOT, then X-Ray.
@@ -65,6 +86,8 @@ GitHub runners and do not ship full GitHub job logs into AWS.
 - Do not add SQS or a separate worker service yet.
 - Do not add production OIDC/JWKS auth in this plan.
 - Do not add full RDS/Aurora production persistence in the first ECS slice.
+- Do not add a Postgres sidecar or migration container to issues #37 or #38.
+- Do not run database migrations from the API task or application startup.
 - Do not add a new failed reservation reason for failure injection. The
   injected path intentionally uses the existing `unexpected-error` reason.
 - Do not add a NAT Gateway in the recommended first ECS slice.
@@ -84,10 +107,10 @@ GitHub runners and do not ship full GitHub job logs into AWS.
   `ecs-infra`, and `movie-reservation-web`.
 - Wave 1 failure injection is implemented with a stable hash/salt policy,
   disabled default, `unexpected-error`, and bounded diagnostic exception type.
-- The Wave 2 branch replaces the generated blank CDK starter with an explicit
-  backend stack containing a VPC, ALB, Fargate service, app image asset, log
-  group, and the minimum no-NAT endpoints. Postgres, ADOT, AMP, and AMG remain
-  later waves.
+- Wave 2 is delivered on `main`: the explicit backend stack contains a VPC,
+  ALB, Fargate service, app image asset, log group, and the minimum no-NAT
+  endpoints. It has been deployed successfully from a laptop and destroyed.
+  ADOT, X-Ray, CloudWatch metrics, AMP, and AMG remain active work.
 - `ecs-infra/package.json` already has `aws-cdk-lib`, `constructs`, Jest,
   TypeScript, and scripts for `build`, `test`, `cdk`, and `ci`.
 - `movie-reservation-service/Dockerfile` already builds the compiled NestJS
@@ -130,6 +153,11 @@ GitHub runners and do not ship full GitHub job logs into AWS.
 - `docs/workflows/ci-workflow.md` documents the current CI foundation as
   deployment-free. CI observability should extend that contract without turning
   every pull request into a deployment pipeline.
+- Issue #37 owns the repo-managed ADOT image, collector sidecar, app OTLP
+  enablement, X-Ray IAM/networking, tests, and AWS trace smoke check.
+- Issue #38 owns CloudWatch metric export, AMP remote write, Managed Grafana,
+  bounded dimensions, tests, and the managed-metrics smoke check.
+- Issue #7 owns RDS and a separate deployment-time ECS migration `RunTask`.
 - The reservation processor already has a retryable and terminal internal
   failure path. `InProcessReservationRequestProcessor.handleUnexpectedFailure`
   records failed attempts and eventually marks the reservation request failed.
@@ -210,7 +238,9 @@ Official AWS sources checked:
   type.
 - Keep the first AWS implementation on the Option C cost/security path:
   public ALB, private ECS tasks, VPC endpoints, and no NAT Gateway.
-- Avoid RDS for the demo; run the database as a container sidecar.
+- Keep #37 and #38 on the current in-memory ECS composition profile.
+- Add RDS later under #7 and execute migrations as a separate ECS `RunTask`
+  during deployment, analogous to a Kubernetes Job.
 - Start with only `movie-reservation-service` in AWS. Add MCP services, agents,
   and recommendation services incrementally later.
 - Include the frontend in Phase 2 using S3 and CloudFront, not in the first
@@ -228,14 +258,11 @@ Official AWS sources checked:
   `cdk deploy` builds locally or in a CI runner and uploads images to
   CDK-managed ECR asset repositories.
 - A later CI/CD slice can promote explicit ECR repositories and image tags.
-- The first ECS service can run with local/demo auth and a Postgres sidecar for
-  disposable demo persistence. Because the database is a sidecar, migration and
-  seed setup must run in the same task using an ECS container-dependency pattern
-  similar to a Kubernetes init container. RDS and true one-off ECS migration
-  tasks become a follow-up if the AWS demo must preserve reservations across
-  task restarts.
-- The app container can connect to the Postgres sidecar on `127.0.0.1:5432`
-  inside the ECS task.
+- The ECS observability demo can use local/demo auth and in-memory persistence;
+  reservations are intentionally disposable across task replacement.
+- A separate ECS task does not share another task's loopback interface. The
+  future migration `RunTask` therefore requires a separately reachable RDS
+  endpoint and belongs in issue #7.
 - Private tasks without NAT require VPC endpoints for image pulls, logs, X-Ray,
   AMP remote write, SigV4/STSesque credential flow, and optional ECS Exec.
 - The public ALB should be treated as demo internet exposure and restricted by
@@ -263,14 +290,12 @@ Official AWS sources checked:
 
 ### Open Questions
 
-1. Should Amazon Managed Grafana be fully provisioned with customer-managed IAM
-   roles in CDK, or is a CDK-created workspace plus documented console data
-   source setup acceptable for the first iteration?
-2. What exact source IP range should be passed as the required
-   `allowedIngressCidr` during backend-only Phase 1 demos?
-3. What AWS Region should be the default? AMG and AMP are regional services,
+1. For #38, should Amazon Managed Grafana be fully provisioned with
+   customer-managed IAM roles in CDK, or is a CDK-created workspace plus
+   documented console data source setup acceptable for the first iteration?
+2. What AWS Region should be used for #38? AMG and AMP are regional services,
    and AMG Region availability must be checked before choosing.
-4. Should the first implementation enable Amazon Managed Grafana immediately or
+3. Should #38 enable Amazon Managed Grafana immediately or
    create AMP/CloudWatch/X-Ray first and add AMG after those signals are
    verified?
 
@@ -285,12 +310,8 @@ Internet or developer
   -> Application Load Balancer
   -> ECS Fargate service
        task:
-         postgres sidecar
-           localhost:5432 only inside the task
-         migration/seed container
-           waits for postgres and exits successfully before app starts
          movie-reservation-service container
-           connects to postgres on 127.0.0.1:5432
+           uses the in-memory composition profile
            stdout JSON logs -> CloudWatch Logs
            OTLP traces/metrics -> localhost:4318
          aws-otel-collector sidecar
@@ -314,7 +335,8 @@ Use Option C for the first AWS stack:
   workload subnet to avoid paying for duplicate endpoint coverage before HA is
   required.
 - Required AWS service traffic goes through VPC gateway/interface endpoints.
-- The database is a Postgres sidecar in the same task, not RDS.
+- The service stays in-memory for #37 and #38. RDS and migrations are a later
+  deployment concern under #7.
 - The ALB must be source-IP restricted with an explicit `allowedIngressCidr`
   config value for the Phase 1 backend-only demo.
 - ECS Exec should be controlled by an explicit `enableEcsExec` config flag.
@@ -336,17 +358,17 @@ This maps to CDK and CloudFormation as follows:
 - `ec2.Vpc` becomes VPC, public subnets for the ALB, private subnets for ECS
   tasks, route tables, and gateway/interface endpoints. The recommended path
   does not create NAT Gateway resources.
-- `ecs.Cluster` becomes an ECS cluster. Cluster settings should enable
-  Container Insights enhanced observability where supported.
+- `ecs.Cluster` becomes an ECS cluster. Keep Container Insights disabled for
+  #37; #38 may enable enhanced observability after its cost and metric scope are
+  reviewed.
 - `ecs.FargateTaskDefinition` becomes an ECS task definition with task and
   execution IAM roles.
-- `taskDefinition.addContainer` creates Postgres, migration/seed, app, and ADOT
-  container definitions.
-- ECS container dependencies enforce startup order:
-  Postgres starts and becomes healthy; migration/seed exits successfully; the
-  app starts; ADOT runs as the local collector sidecar.
-- The app, Postgres, migration, and collector `awslogs` drivers create separate
-  CloudWatch log group wiring.
+- `taskDefinition.addContainer` creates app and ADOT container definitions.
+- In #37 the app and nonessential collector start independently, with no ECS
+  container dependency. The app's `/health` check remains the service health
+  boundary; collector health is visible separately and end-to-end trace
+  delivery is verified by smoke test.
+- The app and collector `awslogs` drivers use separate CloudWatch log groups.
 - `ApplicationLoadBalancedFargateService` can create the ALB, listener, target
   group, security groups, and Fargate service, or the plan can use lower-level
   ECS/ELB constructs once sidecar control gets too awkward.
@@ -363,8 +385,6 @@ Use fixed, readable names for the learning stack:
 - CloudWatch log groups:
   - `/golden-path/aws-demo/movie-reservation-service/app`
   - `/golden-path/aws-demo/movie-reservation-service/adot`
-  - `/golden-path/aws-demo/movie-reservation-service/postgres`
-  - `/golden-path/aws-demo/movie-reservation-service/migration`
 - CloudWatch metric namespaces:
   - `GoldenPath/MovieReservationService`
   - `GoldenPath/CI`
@@ -381,11 +401,8 @@ Use CDK Docker image assets first:
   `movie-reservation-service/Dockerfile`, because the Dockerfile expects root
   `package.json`, `package-lock.json`, and workspace metadata.
 - ADOT image: build from `ecs-infra/adot-collector/` with a Dockerfile based on
-  `public.ecr.aws/aws-observability/aws-otel-collector:latest` or a pinned ADOT
-  version.
-- Postgres image: use the official Postgres image directly for the first demo
-  sidecar. Do not build a custom database image until seed/migration behavior
-  proves that it is needed.
+  an official ADOT release pinned by both explicit tag and immutable digest.
+  Never use `latest` for the #37 implementation.
 
 CDK assets are appropriate for the first implementation because they make the
 learning path direct: `cdk deploy` builds, uploads, and wires the image into the
@@ -401,7 +418,12 @@ ecs-infra/adot-collector/Dockerfile
 ecs-infra/adot-collector/adot-config.yaml
 ```
 
-Collector responsibilities:
+The following collector responsibilities describe the combined #37/#38 target.
+For #37, implement only the traces pipeline in
+[`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md). Metrics receivers and
+exporters remain #38 work.
+
+Combined target responsibilities:
 
 - Receive traces and metrics from the app over OTLP HTTP and gRPC.
 - Receive ECS task/container metrics through `awsecscontainermetrics`.
@@ -425,32 +447,26 @@ Set ECS environment variables for the app container:
 - `NODE_ENV=development` for the first demo-only slice, or a future
   production-shaped profile after auth and persistence are addressed.
 - `LOG_LEVEL=info`
-- `SERVICE_VERSION=<git sha or package version>`
-- `COMPOSITION_PROFILE=local-postgres` for the first sidecar-backed ECS demo.
-- `RESERVATION_WORKER_MODE=fake-in-process`
-- `DATABASE_URL=postgres://...@127.0.0.1:5432/...` from ECS secrets/env for
-  the sidecar database.
+- `SERVICE_VERSION=<movie-reservation-service package version>`
+- `COMPOSITION_PROFILE=local-fixed-user` for the disposable in-memory ECS demo.
+- `RESERVATION_WORKER_MODE=disabled` unless a later demo explicitly needs
+  reservation processing/failure injection.
 - `OBSERVABILITY_ENABLED=true`
+- `OTEL_TRACES_EXPORTER=otlp`
+- `OTEL_METRICS_EXPORTER=none` for #37; #38 changes this deliberately
+- `OTEL_LOGS_EXPORTER=none`
 - `OTEL_SERVICE_NAME=movie-reservation-service`
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318`
 - `OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf`
 - `OTEL_PROPAGATORS=tracecontext,baggage`
-- `OTEL_RESOURCE_ATTRIBUTES=service.environment=aws-demo,deployment.environment.name=aws-demo`
+- `OTEL_RESOURCE_ATTRIBUTES=deployment.environment.name=aws-demo,service.namespace=movie-reservation-platform`
 - failure injection env vars described below.
 
-The first sidecar-backed demo should use a migration/seed container inside the
-same ECS task:
-
-- The migration container uses the same app image with a migration/seed command.
-- It connects to the Postgres sidecar on `127.0.0.1:5432`.
-- The app container depends on the migration container completing successfully.
-- The CDK code should include a short comment explaining that this is the ECS
-  sidecar equivalent of an init-container pattern.
-- Do not model this as a separate one-off ECS task while the database is a
-  sidecar, because a separate task cannot reach another task's
-  `127.0.0.1:5432`.
-- In the later RDS production-shaped version, replace this with a true one-off
-  ECS migration task that connects to RDS before deploying/updating the service.
+No database or migration environment is required by #37 or #38. Under #7, the
+deployment orchestrator must run a dedicated migration task against RDS and
+wait for its terminal exit code before updating the service. Initially that
+orchestration can run from the developer laptop; the later private deployment
+workflow will reuse the same contract.
 
 ### IAM
 
@@ -517,9 +533,9 @@ Use a small typed config boundary rather than scattering raw context lookups:
 
 ```ts
 export interface PlatformConfig {
-  readonly platformName: 'movie-reservation-platform';
-  readonly serviceName: 'movie-reservation-service';
-  readonly environmentName: 'aws-demo';
+  readonly platformName: "movie-reservation-platform";
+  readonly serviceName: "movie-reservation-service";
+  readonly environmentName: "aws-demo";
   readonly allowedIngressCidr: string;
   readonly vpcMaxAzs: 2;
   readonly workloadAzCount: 1;
@@ -654,14 +670,14 @@ Use a narrow GitHub OIDC role:
 
 Emit metrics to the `GoldenPath/CI` namespace:
 
-| Metric | Dimensions | Notes |
-|---|---|---|
-| `WorkflowRun` | `Repository`, `Workflow`, `EventName`, `Source`, `Result` | Count one per completed workflow run. |
-| `JobDurationMs` | `Repository`, `Workflow`, `Job`, `EventName`, `Source`, `Result` | Duration of CI jobs such as service, web, and infra. |
-| `CdkSynthDurationMs` | `Repository`, `Workflow`, `Stack`, `EventName`, `Source`, `Result` | Duration of `npm -w ecs-infra run cdk -- synth` when job data is available. |
-| `CdkSynthSuccess` | `Repository`, `Workflow`, `Stack`, `EventName`, `Source`, `Result` | Count success/failure for synth. |
-| `DeploymentSuccess` | `Repository`, `Environment`, `Stack`, `Result` | Add only when a deploy workflow exists. |
-| `SmokeTestDurationMs` | `Repository`, `Environment`, `Stack`, `Result` | Add with post-deploy smoke tests. |
+| Metric                | Dimensions                                                         | Notes                                                                       |
+| --------------------- | ------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| `WorkflowRun`         | `Repository`, `Workflow`, `EventName`, `Source`, `Result`          | Count one per completed workflow run.                                       |
+| `JobDurationMs`       | `Repository`, `Workflow`, `Job`, `EventName`, `Source`, `Result`   | Duration of CI jobs such as service, web, and infra.                        |
+| `CdkSynthDurationMs`  | `Repository`, `Workflow`, `Stack`, `EventName`, `Source`, `Result` | Duration of `npm -w ecs-infra run cdk -- synth` when job data is available. |
+| `CdkSynthSuccess`     | `Repository`, `Workflow`, `Stack`, `EventName`, `Source`, `Result` | Count success/failure for synth.                                            |
+| `DeploymentSuccess`   | `Repository`, `Environment`, `Stack`, `Result`                     | Add only when a deploy workflow exists.                                     |
+| `SmokeTestDurationMs` | `Repository`, `Environment`, `Stack`, `Result`                     | Add with post-deploy smoke tests.                                           |
 
 Use bounded values for:
 
@@ -868,6 +884,11 @@ This design means:
 
 ### Alternative G: ADOT Sidecar Per Task
 
+This is OpenTelemetry's
+[agent deployment pattern](https://opentelemetry.io/docs/collector/deploy/agent/):
+the collector runs alongside the application and receives telemetry over a
+task-local endpoint.
+
 - Pros:
   - Simple locality: app exports to `localhost`.
   - No service discovery needed for the first service.
@@ -880,6 +901,11 @@ This design means:
   - Recommended for the first service.
 
 ### Alternative H: Shared Collector Service
+
+This is OpenTelemetry's
+[gateway deployment pattern](https://opentelemetry.io/docs/collector/deploy/gateway/):
+applications send telemetry to a shared OTLP endpoint served by one or more
+standalone collectors.
 
 - Pros:
   - Fewer collector containers at higher scale.
@@ -979,24 +1005,21 @@ typed config object for deployment decisions:
 
 ## 9. Data Model / Persistence Changes
 
-The first AWS slice uses a disposable Postgres sidecar, so there is no external
+The managed-observability slices use in-memory persistence, so there is no
 database service to provision and no durable data-retention contract.
 
 No Postgres migration is required for failure injection because it reuses the
 existing `unexpected-error` failed-attempt reason. This is deliberate: the demo
 simulates a real-looking bug rather than a labelled demo fault.
 
-The sidecar database still needs schema/seed initialization:
-
-- For sidecar Postgres, use a migration/seed container inside the same ECS task
-  with container dependencies.
-- For future RDS, use a true one-off ECS migration task before deploying or
-  updating the service.
+No schema or seed initialization is required by #37 or #38. Future RDS changes
+must use a true one-off ECS migration task before deploying or updating the
+service; that contract is owned by issue #7.
 
 ## 10. Security, Privacy, and Abuse Considerations
 
 - Keep the first AWS stack tagged and named as demo because it uses local auth,
-  sidecar persistence, public ALB exposure, and optional failure injection.
+  in-memory persistence, public ALB exposure, and optional failure injection.
 - Failure injection must default to disabled.
 - Failure injection must be blocked or explicitly refused for staging and
   production profiles unless there is a deliberate chaos-testing decision.
@@ -1024,14 +1047,15 @@ The sidecar database still needs schema/seed initialization:
 
 ## 11. Performance, Scalability, and Reliability Considerations
 
-- ADOT sidecar adds CPU/memory overhead. Start with enough task memory for app
-  plus collector, for example 1024 CPU units and 2048 or 3072 MiB while tuning.
+- For #37, use the exact focused-plan starting size: 512 task CPU units and
+  1024 MiB, partitioned as app 384 CPU/640 MiB and ADOT 128 CPU/384 MiB.
+  Measure before changing it; do not use the older examples in this umbrella.
 - Keep batch processors enabled in the collector to reduce export overhead.
 - Use bounded metric labels. Current service metrics are mostly safe; keep ids
   out of metrics.
 - Use CloudWatch Container Insights enhanced observability for infrastructure
-  metrics rather than trying to recreate all ECS task metrics in application
-  code.
+  metrics under #38 rather than trying to recreate ECS task metrics in
+  application code. Keep it disabled in #37.
 - Configure ECS deployment circuit breaker with rollback for failed deployments.
 - Use ALB health checks against `/health`. Keep `/ready` for platform or
   dependency-aware readiness but avoid causing dependency outages to restart all
@@ -1058,7 +1082,7 @@ The sidecar database still needs schema/seed initialization:
 Split implementation into reviewable waves. Each wave should be its own PR or
 small group of PRs unless the actual diff is tiny.
 
-### Wave 1: Failure Injection, Local First
+### Wave 1: Failure Injection, Local First (Delivered)
 
 - Change: Add `ReservationProcessingFailurePolicy`, disabled default, stable
   hash/salt implementation, env config, and DI wiring.
@@ -1081,7 +1105,7 @@ small group of PRs unless the actual diff is tiny.
   - focused unit/integration tests for disabled, forced, and stable-random
     behavior.
 
-### Wave 2: Backend CDK Skeleton
+### Wave 2: Backend CDK Skeleton (Delivered)
 
 - Change: Replace the blank stack with an explicit first-pass
   `GoldenPathDemoStack` resource graph for the backend only.
@@ -1121,11 +1145,13 @@ small group of PRs unless the actual diff is tiny.
   - clean service Docker build and `/health` runtime probe
   - verify `aws-cdk-lib` and `constructs` are absent from the runtime image
 
-### Wave 3: Sidecars, Startup Order, And Debugging
+### Wave 3: ADOT Collector And X-Ray Traces (#37)
 
-- Change: Add Postgres sidecar, migration/seed container, ECS container
-  dependencies, split log groups, and ECS Exec debugging instructions for the
-  sidecar task.
+- Source of truth:
+  [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md).
+- Change: Add the repo-owned ADOT image/config, collector sidecar, app OTLP
+  configuration, X-Ray exporter permissions/connectivity, split log groups, and
+  collector debugging instructions.
 - Files/modules likely affected:
   - `ecs-infra/lib/infra-stack.ts`
   - `ecs-infra/lib/config/platform-config.ts`
@@ -1133,22 +1159,23 @@ small group of PRs unless the actual diff is tiny.
   - `ecs-infra/README.md`
   - `docs/operations/runbook.md`
 - Notes:
-  - The app connects to sidecar Postgres on `127.0.0.1:5432`.
-  - The migration/seed container runs inside the same task and must complete
-    before the app starts.
-  - Add a CDK code comment explaining why this is not a separate one-off ECS
-    task until RDS exists.
+  - Keep the app on the in-memory composition profile.
+  - The app exports OTLP HTTP to the collector at `127.0.0.1:4318`.
+  - Start with traces and X-Ray only; do not absorb #38 metrics resources.
   - Reuse the Wave 2 `enableEcsExec` service flag, task-role permissions, and
-    `ssmmessages` endpoint when debugging sidecar containers.
+    `ssmmessages` endpoint when debugging the collector container.
 - Verification:
-  - CDK assertions for Postgres, migration, app, ADOT placeholder/log groups,
-    container dependencies, ECS Exec flag behavior, and absence of NAT Gateway.
+  - CDK assertions for independent app/ADOT containers, nonessential collector
+    lifecycle/health/restart behavior, X-Ray IAM/network path, split log groups,
+    ECS Exec flag behavior, and absence of NAT Gateway and #38 resources.
+  - Laptop deploy smoke proving an application trace reaches X-Ray, followed by
+    `cdk destroy`.
 
-### Wave 4: ADOT And AWS-Native Observability
+### Wave 4: CloudWatch, AMP, And Managed Grafana Metrics (#38)
 
-- Change: Add ADOT collector image/config, sidecar container, IAM permissions,
-  X-Ray export, CloudWatch metric export, AMP workspace/export, and AMG
-  workspace or documented manual AMG setup.
+- Change: Extend the proven ADOT collector with CloudWatch metric export, AMP
+  workspace/remote write, ECS task metrics, and an AMG workspace or documented
+  minimal manual identity/data-source setup.
 - Files/modules likely affected:
   - `ecs-infra/adot-collector/Dockerfile`
   - `ecs-infra/adot-collector/adot-config.yaml`
@@ -1162,8 +1189,8 @@ small group of PRs unless the actual diff is tiny.
     both platform and business signals.
   - Metric dimensions must stay bounded.
 - Verification:
-  - CDK assertions for ADOT container, task role policies, AMP workspace, AMG
-    workspace when enabled, and CloudWatch log retention.
+  - CDK assertions for metric exporters, task role policies, AMP workspace, AMG
+    workspace when enabled, endpoints, and CloudWatch log retention.
 
 ### Wave 5: AWS Smoke, Teardown, And Cost Safety
 
@@ -1181,7 +1208,7 @@ small group of PRs unless the actual diff is tiny.
     CloudFront/S3.
   - Recommend a small AWS Budget alert outside the first CDK stack.
 - Verification:
-  - Real AWS smoke: ALB `/health`, GraphQL query, reservation flow, X-Ray,
+  - Real AWS smoke: ALB `/health`, GraphQL query, X-Ray,
     CloudWatch Logs/Metrics, AMP/AMG queries, and post-destroy resource checks.
 
 ### Wave 6: Frontend Phase 2
@@ -1253,18 +1280,16 @@ small group of PRs unless the actual diff is tiny.
 ### CDK Tests
 
 - Assert one ECS cluster exists.
-- Assert Container Insights setting is enabled/enhanced where represented.
+- Assert Container Insights remains disabled in #37 and is enabled/enhanced
+  only when #38 implements that path.
 - Assert the task definition includes:
   - app container;
-  - Postgres sidecar container;
-  - migration/seed container;
   - ADOT collector container;
-  - app depends on Postgres health/start;
-  - app depends on migration/seed success;
-  - app depends on collector start;
+  - no app dependency on collector start or health;
+  - nonessential collector health and restart configuration;
   - app OTLP endpoint points at localhost sidecar;
-  - app, Postgres, migration, and ADOT containers use split `awslogs` log
-    groups.
+  - app and ADOT containers use split `awslogs` log groups;
+  - no database or migration container exists in #37/#38.
 - Assert no NAT Gateway resources are created in the recommended stack.
 - Assert four VPC subnets are created across two AZs, the ALB uses two public
   subnets, and the ECS service plus interface endpoints use one workload
@@ -1276,10 +1301,10 @@ small group of PRs unless the actual diff is tiny.
 - Assert ALB ingress requires explicit source-CIDR restriction.
 - Assert the ECS Exec service flag, `ssmmessages` endpoint, and task-role
   message-channel permissions are controlled by `enableEcsExec`.
-- Assert task role contains X-Ray, CloudWatch metrics/logs, and AMP remote write
-  permissions.
-- Assert AMP workspace exists.
-- Assert AMG workspace exists when selected.
+- For #37, assert the task role contains only the required X-Ray writes for the
+  trace path and no metric/AMP permissions.
+- For #38, assert the later CloudWatch/AMP permissions and workspaces in that
+  issue's focused plan.
 - Assert CloudWatch log retention is set.
 
 ### AWS Smoke Tests
@@ -1341,12 +1366,13 @@ npm -w ecs-infra run cdk -- deploy
 5. Verify private tasks can pull images, write logs, export traces, and remote
    write metrics without NAT.
 6. Verify ALB health and GraphQL smoke.
-7. Verify the Postgres sidecar, migration/seed path, and reservation flow.
-8. Verify ADOT sidecar logs and no crash loops.
-9. Verify X-Ray traces.
-10. Verify CloudWatch metrics.
-11. Verify AMP ingestion and AMG data source access.
-12. Enable failure injection in the demo stack only.
+7. Verify ADOT sidecar logs and no crash loops.
+8. Verify X-Ray traces for #37.
+9. Destroy the #37 stack after the trace smoke check.
+10. Add and verify CloudWatch metrics under #38.
+11. Verify AMP ingestion and AMG data source access under #38.
+12. Enable failure injection in the demo stack only when the in-memory worker is
+    deliberately enabled for that rehearsal.
 13. Generate demo traffic and check `unexpected-error` metrics/logs/traces with
     `SeatReservationCommitError` as bounded diagnostic exception type.
 14. Run teardown using
@@ -1370,41 +1396,37 @@ Rollback:
 - Use `cdk destroy` for the demo stack if AWS costs or permissions are wrong.
 - Disable or remove the CI observability workflow/role independently from the
   ECS stack if telemetry permissions are wrong.
-- If sidecar migration/seed startup is wrong, stop the ECS service and redeploy
-  with failure injection disabled before retrying.
 
 ## 15. Risks and Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-|---|---:|---:|---|
-| AMG auth prerequisites are missing | High | Medium | Treat AMG workspace/data source setup as an explicit open question; document manual setup if needed. |
-| CDK asset deploy is slow or brittle in local Docker | Medium | Medium | Use assets for first slice, then move to GitHub Actions/ECR promotion after stack works. |
-| ADOT config works locally but not on ECS | High | Medium | Use official ECS ADOT patterns, add sidecar logs, deploy a minimal config first, then add exporters incrementally. |
-| Metrics appear in CloudWatch but not AMP | Medium | Medium | Separate CloudWatch and AMP pipelines; verify SigV4 auth, AMP endpoint, task role permissions, and Region. |
-| Missing VPC endpoint breaks private tasks | High | Medium | Add endpoint assertions, deploy incrementally, and check image pull/log/X-Ray/AMP paths separately. |
-| VPC endpoints cost as much as NAT if overused | Medium | Medium | Keep endpoint list explicit, pin paid endpoint ENIs to one workload AZ, perform a cost checkpoint before Wave 4 expands the endpoint inventory, and destroy the stack when idle. |
-| Metric cardinality grows too high | High | Low | Keep ids out of labels; review every new metric attribute. |
-| CI metrics create high-cardinality CloudWatch costs | Medium | Medium | Keep run id, SHA, PR number, trace id, request id, and correlation id out of dimensions; put them in logs/summaries only. |
-| GitHub OIDC role is too broad | High | Medium | Separate CI observability and deploy roles; restrict trust policy and IAM actions; do not allow fork PRs to assume roles. |
-| Raw CI logs leak secrets into CloudWatch | High | Low | Emit summarized structured events only; never upload full job logs or environment dumps. |
-| Failure injection leaks into production | High | Low | Default disabled, config guardrails, demo stack naming, tests for forbidden production config. |
-| Failure injection is too obvious for on-call rehearsal | Medium | Medium | Reuse `unexpected-error` and expose only bounded diagnostic exception type such as `SeatReservationCommitError`. |
-| Pure randomness makes tests flaky | Medium | Medium | Use stable hash-based decisions and fake policies in tests. |
-| Retries reduce final failure rate below 40% | Medium | High with per-attempt randomness | Make failure injection terminal per request or set demo retry budget deliberately. |
-| Public demo ALB is left running | Medium | Medium | Add cost/security cleanup docs, stack tags, and `cdk destroy` runbook. |
-| Sidecar DB migration is incorrectly modeled as a separate ECS task | Medium | Medium | Document that sidecar Postgres uses a migration container in the same task; reserve true one-off ECS migration tasks for RDS. |
-| Phase 2 ALB is directly reachable despite CloudFront | Medium | Medium | Use CloudFront managed prefix list plus CloudFront origin verification header; defer WAF only for cost reasons. |
-| RDS is deferred but later needed for realistic demo | Medium | Medium | Keep RDS/migration as a clearly scoped follow-up with its own rollback path. |
+| Risk                                                   | Impact |                       Likelihood | Mitigation                                                                                                                                                                       |
+| ------------------------------------------------------ | -----: | -------------------------------: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AMG auth prerequisites are missing                     |   High |                           Medium | Treat AMG workspace/data source setup as an explicit open question; document manual setup if needed.                                                                             |
+| CDK asset deploy is slow or brittle in local Docker    | Medium |                           Medium | Use assets for first slice, then move to GitHub Actions/ECR promotion after stack works.                                                                                         |
+| ADOT config works locally but not on ECS               |   High |                           Medium | Use official ECS ADOT patterns, add sidecar logs, deploy a minimal config first, then add exporters incrementally.                                                               |
+| Metrics appear in CloudWatch but not AMP               | Medium |                           Medium | Separate CloudWatch and AMP pipelines; verify SigV4 auth, AMP endpoint, task role permissions, and Region.                                                                       |
+| Missing VPC endpoint breaks private tasks              |   High |                           Medium | Add endpoint assertions, deploy incrementally, and check image pull/log/X-Ray/AMP paths separately.                                                                              |
+| VPC endpoints cost as much as NAT if overused          | Medium |                           Medium | Keep endpoint list explicit, pin paid endpoint ENIs to one workload AZ, perform a cost checkpoint before Wave 4 expands the endpoint inventory, and destroy the stack when idle. |
+| Metric cardinality grows too high                      |   High |                              Low | Keep ids out of labels; review every new metric attribute.                                                                                                                       |
+| CI metrics create high-cardinality CloudWatch costs    | Medium |                           Medium | Keep run id, SHA, PR number, trace id, request id, and correlation id out of dimensions; put them in logs/summaries only.                                                        |
+| GitHub OIDC role is too broad                          |   High |                           Medium | Separate CI observability and deploy roles; restrict trust policy and IAM actions; do not allow fork PRs to assume roles.                                                        |
+| Raw CI logs leak secrets into CloudWatch               |   High |                              Low | Emit summarized structured events only; never upload full job logs or environment dumps.                                                                                         |
+| Failure injection leaks into production                |   High |                              Low | Default disabled, config guardrails, demo stack naming, tests for forbidden production config.                                                                                   |
+| Failure injection is too obvious for on-call rehearsal | Medium |                           Medium | Reuse `unexpected-error` and expose only bounded diagnostic exception type such as `SeatReservationCommitError`.                                                                 |
+| Pure randomness makes tests flaky                      | Medium |                           Medium | Use stable hash-based decisions and fake policies in tests.                                                                                                                      |
+| Retries reduce final failure rate below 40%            | Medium | High with per-attempt randomness | Make failure injection terminal per request or set demo retry budget deliberately.                                                                                               |
+| Public demo ALB is left running                        | Medium |                           Medium | Add cost/security cleanup docs, stack tags, and `cdk destroy` runbook.                                                                                                           |
+| Database work leaks into the observability slices      | Medium |                           Medium | Keep #37/#38 in-memory; add RDS and the deployment-time migration `RunTask` together under #7.                                                                                   |
+| Phase 2 ALB is directly reachable despite CloudFront   | Medium |                           Medium | Use CloudFront managed prefix list plus CloudFront origin verification header; defer WAF only for cost reasons.                                                                  |
+| RDS is deferred but later needed for realistic demo    | Medium |                           Medium | Keep RDS/migration as a clearly scoped follow-up with its own rollback path.                                                                                                     |
 
 ## 16. Done Criteria
 
 - `ecs-infra` contains a non-blank CDK stack for the ECS demo.
 - CDK builds and publishes the app image through Docker image assets.
 - CDK builds and publishes a custom ADOT collector image asset.
-- ECS task definition has app, Postgres sidecar, migration/seed, and ADOT
-  sidecar containers.
-- Migration/seed container runs in the same task and app startup depends on its
-  successful completion.
+- ECS task definition has app and ADOT sidecar containers and no database or
+  migration container.
 - Recommended CDK stack creates no NAT Gateway resources.
 - Recommended CDK stack uses a fixed two-AZ VPC and one-AZ workload/endpoint
   placement for the demo default.
@@ -1448,7 +1470,7 @@ Rollback:
 - [ ] No-NAT VPC endpoint assumptions are documented
 - [ ] Two-AZ VPC and one-AZ workload compromise is documented in an ADR
 - [ ] Endpoint-versus-NAT cost checkpoint is documented in an ADR
-- [ ] Sidecar migration versus future RDS migration-task behavior is documented
+- [ ] In-memory observability scope versus future RDS migration-task behavior is documented
 - [ ] CI observability dimensions avoid high-cardinality values
 - [ ] Demo-only behavior is isolated from production defaults
 - [ ] Failure injection is production-looking and does not add a labelled demo
@@ -1458,78 +1480,12 @@ Rollback:
 
 ## 18. Handoff Prompt for Implementation Agent
 
-Copy/paste this prompt into a coding agent:
+This umbrella document no longer has one executable handoff because its work is
+split across issues with different acceptance boundaries.
 
-```text
-Implement the plan in docs/plans/ecs-adot-managed-observability.md.
-
-Constraints:
-- Stay within the scope of the plan.
-- Do not introduce new dependencies unless the plan explicitly allows it.
-- Preserve existing public GraphQL behavior unless the plan explicitly changes it.
-- Keep NestJS at the presentation/composition boundary.
-- Keep domain and application code plain TypeScript where possible.
-- Put new application ports under movie-reservation-service/src/application/movie-reservations/ports/.
-- Keep failure injection disabled by default and guarded as demo-only behavior.
-- Failure injection must simulate a production-looking unexpected error: use `unexpected-error`, do not add `demo-random-failure`, and do not add a failure-reason migration.
-- Use bounded diagnostic exception type `SeatReservationCommitError` for injected failures.
-- Implement work in waves; start with local failure injection before AWS deploy work.
-- Use CDK Docker image assets for the first deployment path.
-- Use an ADOT sidecar container, not a shared collector service, for the first slice.
-- Use the Option C network path for the first AWS slice: public ALB, private ECS tasks, VPC endpoints, and no NAT Gateway.
-- Use a Postgres sidecar for demo persistence; do not add RDS in the first slice.
-- Use a migration/seed container in the same ECS task for sidecar Postgres; true one-off ECS migration tasks are for the later RDS shape.
-- Keep the first CDK implementation explicit in `infra-stack.ts`; defer reusable constructs until after the first successful deploy.
-- Use typed CDK config with required restricted `allowedIngressCidr`, fixed `vpcMaxAzs: 2`, fixed `workloadAzCount: 1`, and `enableEcsExec`.
-- Keep logs on stdout through the ECS awslogs driver.
-- Do not put ids such as trace_id, request_id, correlation_id, reservation_request_id, or user_id into metric labels.
-- Frontend is Phase 2: S3 + CloudFront, CI/CD asset upload, relative `/graphql`, and CloudFront-to-ALB restrictions.
-- Keep CI observability separate from full CI/CD deployment automation.
-- For CI telemetry, use a separate `workflow_run` workflow, GitHub OIDC, and a narrow observability role; do not store static AWS keys.
-- Do not expose a public OTLP collector for GitHub Actions.
-- Do not ship full GitHub job logs, environment dumps, or synthesized templates into CloudWatch.
-- If implementation reality differs from the plan, stop and update the plan or ask for approval before changing scope.
-
-Relevant files/modules:
-- ecs-infra/lib/infra-stack.ts
-- ecs-infra/lib/config/platform-config.ts
-- ecs-infra/bin/infra.ts
-- ecs-infra/test/infra.test.ts
-- ecs-infra/package.json
-- .github/workflows/ci.yml
-- .github/workflows/ci-telemetry.yml
-- movie-reservation-service/Dockerfile
-- movie-reservation-service/src/config.ts
-- movie-reservation-service/src/application/movie-reservations/in-process-reservation-request-processor.ts
-- movie-reservation-service/src/application/movie-reservations/reservation-request-processing-attempt.ts
-- movie-reservation-service/src/application/movie-reservations/ports/reservation-processing-failure-policy.ts
-- movie-reservation-service/src/application/movie-reservations/ports/reservation-request-processor.ts
-- movie-reservation-service/src/application/movie-reservations/ports/movie-reservation-observability.ts
-- movie-reservation-service/src/di/movie-reservations/movie-reservation.tokens.ts
-- movie-reservation-service/src/di/movie-reservations/use-case.providers.ts
-- movie-reservation-service/src/infrastructure/observability/metrics/
-- movie-reservation-service/src/infrastructure/repositories/postgres/postgres-mappers.ts
-- docs/operations/runbook.md
-- docs/workflows/local-observability.md
-- docs/workflows/aws-ecs-observability.md
-- docs/workflows/ci-observability.md
-- docs/index.md
-
-Expected verification commands:
-- npm -w movie-reservation-service run check
-- npm -w ecs-infra run ci
-- npm run lint
-- npm -w ecs-infra run cdk -- synth -c allowedIngressCidr=203.0.113.10/32
-- npm -w ecs-infra run cdk -- diff
-
-Expected AWS smoke checks after deploy:
-- ALB GET /health returns 200
-- GraphQL movies query succeeds
-- reservation request plus polling works
-- failure injection produces production-looking FAILED reservation requests with `unexpected-error` and `SeatReservationCommitError` when enabled
-- traces appear in X-Ray
-- logs appear in CloudWatch Logs
-- app metrics appear in CloudWatch metrics
-- metrics appear in AMP and are queryable from AMG
-- cdk destroy plus panic cleanup checks show expensive demo resources are gone
-```
+- For issue #37, use the handoff in
+  [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md).
+- Before issue #38 implementation, create a focused CloudWatch/AMP/AMG plan and
+  handoff from the still-relevant design material in this document.
+- Do not ask an implementation agent to deliver #37, #38, frontend hosting, CI
+  telemetry, and failure-injection work from one branch.

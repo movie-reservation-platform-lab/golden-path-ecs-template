@@ -41,6 +41,19 @@ npm -w movie-reservation-service run test:integration
 npm -w movie-reservation-service test
 ```
 
+The infrastructure workspace also validates the pinned collector artifact and
+the credential-free parts of the X-Ray smoke tool:
+
+```sh
+npm -w ecs-infra run validate:adot-image
+npm -w ecs-infra run validate:xray-smoke
+```
+
+The collector command builds and starts the repository-owned image, then runs
+its bundled `/healthcheck`. It supplies no AWS credentials and exports no test
+trace. The smoke validation performs shell/static helper checks; Jest uses fake
+`aws` and `curl` executables to cover structured success and failure reports.
+
 ## Runtime Version
 
 Node is pinned with `.nvmrc`:
@@ -59,7 +72,9 @@ GitHub Actions reads the same file through `actions/setup-node`, so local develo
   they are local/manual checks for now. They require Docker/Testcontainers or a
   developer-managed Postgres database and are intentionally not part of the
   required CI-1 workflow yet.
-- Future deployed-environment smoke tests should use a separate system or smoke-test workflow.
+- The X-Ray smoke helper has credential-free local tests, while a real deployed
+  trace remains a laptop system/smoke check until the private promotion
+  workflow exists.
 
 Current in-process NestJS Supertest checks are integration/API contract tests because they start the app in-process with local/fake infrastructure. They are not Docker-network e2e tests.
 
@@ -71,7 +86,8 @@ The workflow at `.github/workflows/ci.yml` exposes six required CI-1 jobs:
 - `service-unit-tests`: service unit tests.
 - `service-integration-tests`: service thin integration/API contract tests.
 - `service-build`: service TypeScript build.
-- `infra`: CDK workspace build, Jest tests, and `cdk synth`.
+- `infra`: CDK workspace build, Jest tests, pinned ADOT image/config/health
+  validation, X-Ray smoke-tool validation, and `cdk synth`.
 - `web`: frontend TypeScript typecheck, Vitest tests, and Vite production build.
 
 As a temporary CI-only bridge, the `infra` job synthesizes with
@@ -83,7 +99,9 @@ deployment default.
 
 The public workflow must remain credential-free: it must not receive AWS access
 keys, an AWS OIDC deploy role, account-specific deployment configuration, or
-permission to publish CDK assets. Real `cdk diff`, `deploy`, and `destroy`
+permission to publish CDK assets. Pulling the public pinned ADOT base image and
+building a local Docker image does not grant AWS deployment authority. Real
+`cdk diff`, `deploy`, trace export, and `destroy`
 operations belong to the private promotion workflow described by
 [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow).
 That workflow will check out an approved public commit SHA, assume a short-lived
@@ -108,8 +126,8 @@ GitHub may require the workflow to run once before these status checks are avail
 
 ## Deferred Work
 
-CI-1 does not include deployment, Docker image publishing, dependency audit
-gates, action SHA pinning, custom caches, artifact uploads, test reports,
+CI-1 does not include deployment, Docker image publishing, real X-Ray export,
+dependency audit gates, action SHA pinning, custom caches, artifact uploads, test reports,
 special PR annotations, Node matrices, Docker/Testcontainers e2e checks,
 Playwright browser checks, affected/path-filtered workspace selection, or
 deployed smoke tests.
@@ -127,4 +145,7 @@ Docker socket because the test process is already running inside a container.
 An alternative is to run Postgres as a CI service/Compose dependency and execute
 the e2e suite in external database mode.
 
-The detailed design is in [github-actions-ci-foundation.md](../plans/github-actions-ci-foundation.md). Deferred hardening and delivery work is tracked in [platform-follow-up-tasks.md](../plans/platform-follow-up-tasks.md).
+The delivered foundation design is in
+[github-actions-ci-foundation.md](../plans/delivered/github-actions-ci-foundation.md).
+Deferred hardening and delivery work is tracked in
+[platform-follow-up-tasks.md](../plans/platform-follow-up-tasks.md).

@@ -6,27 +6,27 @@ The goal is not "mock everything". The goal is to keep most tests close to real 
 
 ## Quick Mapping From Pytest
 
-| Python / pytest | TypeScript / Vitest | Notes |
-| --- | --- | --- |
-| `pytest` | `vitest` | Test runner. |
-| `assert value == expected` | `expect(value).toEqual(expected)` | Vitest uses matcher functions. |
-| `@pytest.fixture` | factory functions, `beforeEach`, or `test.extend` | Use the simplest option first. |
-| yielded fixture teardown | `afterEach`, `afterAll`, or fixture cleanup | Useful for app/server/database lifecycle. |
-| reusable fake implementation | class/function implementing a TS interface | This maps very well to your testing style. |
-| monkeypatch/mock | `vi.fn()`, `vi.spyOn()`, module mocks | Use sparingly, mostly at hard external boundaries. |
-| FastAPI `TestClient` | `supertest` against Nest app HTTP server | Already used in `service/test/e2e/graphql.test.ts`. |
+| Python / pytest              | TypeScript / Vitest                               | Notes                                                                             |
+| ---------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `pytest`                     | `vitest`                                          | Test runner.                                                                      |
+| `assert value == expected`   | `expect(value).toEqual(expected)`                 | Vitest uses matcher functions.                                                    |
+| `@pytest.fixture`            | factory functions, `beforeEach`, or `test.extend` | Use the simplest option first.                                                    |
+| yielded fixture teardown     | `afterEach`, `afterAll`, or fixture cleanup       | Useful for app/server/database lifecycle.                                         |
+| reusable fake implementation | class/function implementing a TS interface        | This maps very well to your testing style.                                        |
+| monkeypatch/mock             | `vi.fn()`, `vi.spyOn()`, module mocks             | Use sparingly, mostly at hard external boundaries.                                |
+| FastAPI `TestClient`         | `supertest` against Nest app HTTP server          | Already used in `movie-reservation-service/test/integration/api/graphql.test.ts`. |
 
 ## Basic Test Shape
 
 ```ts
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
 function add(left: number, right: number): number {
   return left + right;
 }
 
-describe('add', () => {
-  it('adds two numbers', () => {
+describe("add", () => {
+  it("adds two numbers", () => {
     expect(add(2, 3)).toBe(5);
   });
 });
@@ -44,12 +44,12 @@ Mental model:
 
 ```ts
 expect(value).toBe(123);
-expect(object).toEqual({ id: 'booking-1' });
-expect(object).toMatchObject({ id: 'booking-1' });
+expect(object).toEqual({ id: "booking-1" });
+expect(object).toMatchObject({ id: "booking-1" });
 expect(array).toHaveLength(2);
 expect(value).toBeNull();
 expect(value).toBeUndefined();
-expect(text).toContain('booking');
+expect(text).toContain("booking");
 expect(text).toMatch(/^booking-\d+$/);
 ```
 
@@ -59,24 +59,24 @@ Use `toMatchObject` when you care only about selected fields.
 ## Async Tests
 
 ```ts
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
 async function loadBooking(): Promise<{ id: string; customerName: string }> {
-  return { id: 'booking-1', customerName: 'Ada Lovelace' };
+  return { id: "booking-1", customerName: "Ada Lovelace" };
 }
 
-describe('loadBooking', () => {
-  it('returns a booking', async () => {
+describe("loadBooking", () => {
+  it("returns a booking", async () => {
     await expect(loadBooking()).resolves.toEqual({
-      id: 'booking-1',
-      customerName: 'Ada Lovelace',
+      id: "booking-1",
+      customerName: "Ada Lovelace",
     });
   });
 
-  it('can also use await directly', async () => {
+  it("can also use await directly", async () => {
     const booking = await loadBooking();
 
-    expect(booking.customerName).toBe('Ada Lovelace');
+    expect(booking.customerName).toBe("Ada Lovelace");
   });
 });
 ```
@@ -88,17 +88,17 @@ The second style is often easier to read once the test has multiple steps.
 This is the same testing rhythm you probably already use in Python.
 
 ```ts
-it('confirms a reservation', () => {
+it("confirms a reservation", () => {
   // Arrange
-  const reservation = { id: 'reservation-1', status: 'REQUESTED' };
+  const reservation = { id: "reservation-1", status: "REQUESTED" };
 
   // Act
-  const confirmed = { ...reservation, status: 'CONFIRMED' };
+  const confirmed = { ...reservation, status: "CONFIRMED" };
 
   // Assert
   expect(confirmed).toEqual({
-    id: 'reservation-1',
-    status: 'CONFIRMED',
+    id: "reservation-1",
+    status: "CONFIRMED",
   });
 });
 ```
@@ -113,24 +113,24 @@ Use factories when creating valid domain objects is noisy.
 type Booking = {
   id: string;
   customerName: string;
-  status: 'CONFIRMED' | 'CANCELLED';
+  status: "CONFIRMED" | "CANCELLED";
 };
 
 function createBooking(overrides: Partial<Booking> = {}): Booking {
   return {
-    id: 'booking-1',
-    customerName: 'Ada Lovelace',
-    status: 'CONFIRMED',
+    id: "booking-1",
+    customerName: "Ada Lovelace",
+    status: "CONFIRMED",
     ...overrides,
   };
 }
 
-it('creates a cancelled booking variant', () => {
-  const booking = createBooking({ status: 'CANCELLED' });
+it("creates a cancelled booking variant", () => {
+  const booking = createBooking({ status: "CANCELLED" });
 
   expect(booking).toMatchObject({
-    id: 'booking-1',
-    status: 'CANCELLED',
+    id: "booking-1",
+    status: "CANCELLED",
   });
 });
 ```
@@ -192,10 +192,12 @@ class FakeBookingRepository implements BookingRepository {
   }
 }
 
-it('lists seeded bookings', async () => {
+it("lists seeded bookings", async () => {
   const repository = new FakeBookingRepository();
-  repository.seed(createBooking({ id: 'booking-1' }));
-  repository.seed(createBooking({ id: 'booking-2', customerName: 'Grace Hopper' }));
+  repository.seed(createBooking({ id: "booking-1" }));
+  repository.seed(
+    createBooking({ id: "booking-2", customerName: "Grace Hopper" }),
+  );
 
   const service = new BookingsService(repository);
 
@@ -223,11 +225,11 @@ function createStubRepository(): BookingRepository {
   };
 }
 
-it('uses a stub repository', async () => {
+it("uses a stub repository", async () => {
   const service = new BookingsService(createStubRepository());
 
-  await expect(service.getBooking('anything')).resolves.toMatchObject({
-    customerName: 'Ada Lovelace',
+  await expect(service.getBooking("anything")).resolves.toMatchObject({
+    customerName: "Ada Lovelace",
   });
 });
 ```
@@ -240,7 +242,7 @@ Use a fake when state and interactions across calls matter.
 Use `vi.fn()` when the important thing is "was this dependency called correctly?"
 
 ```ts
-import { expect, it, vi } from 'vitest';
+import { expect, it, vi } from "vitest";
 
 type EmailSender = {
   sendEmail(to: string, subject: string): Promise<void>;
@@ -250,21 +252,21 @@ class BookingNotifier {
   constructor(private readonly emailSender: EmailSender) {}
 
   async notifyCustomer(email: string): Promise<void> {
-    await this.emailSender.sendEmail(email, 'Booking confirmed');
+    await this.emailSender.sendEmail(email, "Booking confirmed");
   }
 }
 
-it('sends a confirmation email', async () => {
+it("sends a confirmation email", async () => {
   const emailSender: EmailSender = {
     sendEmail: vi.fn(),
   };
   const notifier = new BookingNotifier(emailSender);
 
-  await notifier.notifyCustomer('ada@example.com');
+  await notifier.notifyCustomer("ada@example.com");
 
   expect(emailSender.sendEmail).toHaveBeenCalledWith(
-    'ada@example.com',
-    'Booking confirmed',
+    "ada@example.com",
+    "Booking confirmed",
   );
 });
 ```
@@ -278,9 +280,9 @@ Do not use this style for every dependency. If every test asserts internal calls
 Use `beforeEach` when each test needs fresh mutable state.
 
 ```ts
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from "vitest";
 
-describe('BookingsService with beforeEach', () => {
+describe("BookingsService with beforeEach", () => {
   let repository: FakeBookingRepository;
   let service: BookingsService;
 
@@ -290,13 +292,13 @@ describe('BookingsService with beforeEach', () => {
     service = new BookingsService(repository);
   });
 
-  it('returns a booking', async () => {
-    await expect(service.getBooking('booking-1')).resolves.toMatchObject({
-      id: 'booking-1',
+  it("returns a booking", async () => {
+    await expect(service.getBooking("booking-1")).resolves.toMatchObject({
+      id: "booking-1",
     });
   });
 
-  it('lists bookings', async () => {
+  it("lists bookings", async () => {
     await expect(service.listBookings()).resolves.toHaveLength(1);
   });
 });
@@ -314,21 +316,23 @@ Tradeoff:
 Vitest has pytest-like fixtures through `test.extend`.
 
 ```ts
-import { expect, test as baseTest } from 'vitest';
+import { expect, test as baseTest } from "vitest";
 
 const test = baseTest
-  .extend('repository', () => {
+  .extend("repository", () => {
     const repository = new FakeBookingRepository();
     repository.seed(createBooking());
     return repository;
   })
-  .extend('service', ({ repository }) => {
+  .extend("service", ({ repository }) => {
     return new BookingsService(repository);
   });
 
-test('gets a booking through a fixture-created service', async ({ service }) => {
-  await expect(service.getBooking('booking-1')).resolves.toMatchObject({
-    id: 'booking-1',
+test("gets a booking through a fixture-created service", async ({
+  service,
+}) => {
+  await expect(service.getBooking("booking-1")).resolves.toMatchObject({
+    id: "booking-1",
   });
 });
 ```
@@ -346,7 +350,7 @@ def service():
 When using `test.extend`, destructure the context:
 
 ```ts
-test('example', async ({ service }) => {
+test("example", async ({ service }) => {
   // use service here
 });
 ```
@@ -360,7 +364,7 @@ For one file with simple setup, a factory function or `beforeEach` is usually en
 Use cleanup when the fixture opens something that must be closed.
 
 ```ts
-import { expect, test as baseTest } from 'vitest';
+import { expect, test as baseTest } from "vitest";
 
 type FakeServer = {
   url: string;
@@ -369,19 +373,19 @@ type FakeServer = {
 
 async function startFakeServer(): Promise<FakeServer> {
   return {
-    url: 'http://127.0.0.1:9999',
+    url: "http://127.0.0.1:9999",
     async close() {},
   };
 }
 
-const test = baseTest.extend('server', async ({}, { onCleanup }) => {
+const test = baseTest.extend("server", async ({}, { onCleanup }) => {
   const server = await startFakeServer();
   onCleanup(() => server.close());
   return server;
 });
 
-test('uses a server fixture', ({ server }) => {
-  expect(server.url).toBe('http://127.0.0.1:9999');
+test("uses a server fixture", ({ server }) => {
+  expect(server.url).toBe("http://127.0.0.1:9999");
 });
 ```
 
@@ -405,10 +409,10 @@ async function requireBooking(
   return booking;
 }
 
-it('throws when a booking is missing', async () => {
+it("throws when a booking is missing", async () => {
   const repository = new FakeBookingRepository();
 
-  await expect(requireBooking(repository, 'missing')).rejects.toThrow(
+  await expect(requireBooking(repository, "missing")).rejects.toThrow(
     BookingNotFoundError,
   );
 });
@@ -424,18 +428,18 @@ Use:
 Use this when the same behavior should hold for multiple inputs.
 
 ```ts
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from "vitest";
 
 function isTerminalStatus(status: string): boolean {
-  return status === 'CONFIRMED' || status === 'CANCELLED';
+  return status === "CONFIRMED" || status === "CANCELLED";
 }
 
-describe('isTerminalStatus', () => {
+describe("isTerminalStatus", () => {
   it.each([
-    ['CONFIRMED', true],
-    ['CANCELLED', true],
-    ['REQUESTED', false],
-  ])('returns %s for %s', (status, expected) => {
+    ["CONFIRMED", true],
+    ["CANCELLED", true],
+    ["REQUESTED", false],
+  ])("returns %s for %s", (status, expected) => {
     expect(isTerminalStatus(status)).toBe(expected);
   });
 });
@@ -448,11 +452,11 @@ This maps to `pytest.mark.parametrize`.
 Use this when you want to verify the Nest module can resolve its providers.
 
 ```ts
-import { Test } from '@nestjs/testing';
-import { describe, expect, it } from 'vitest';
+import { Test } from "@nestjs/testing";
+import { describe, expect, it } from "vitest";
 
-describe('BookingsCompositionModule', () => {
-  it('resolves the service', async () => {
+describe("BookingsCompositionModule", () => {
+  it("resolves the service", async () => {
     const moduleRef = await Test.createTestingModule({
       imports: [BookingsCompositionModule],
     }).compile();
@@ -505,11 +509,11 @@ This is similar to your Python `DependencyOverrideRegistrar`.
 This repo already uses this style for GraphQL.
 
 ```ts
-import type { INestApplication } from '@nestjs/common';
-import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { INestApplication } from "@nestjs/common";
+import request from "supertest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-describe('GraphQL bookings', () => {
+describe("GraphQL bookings", () => {
   let app: INestApplication;
 
   beforeAll(async () => {
@@ -521,9 +525,9 @@ describe('GraphQL bookings', () => {
     await app.close();
   });
 
-  it('returns bookings', async () => {
+  it("returns bookings", async () => {
     const response = await request(app.getHttpServer())
-      .post('/graphql')
+      .post("/graphql")
       .send({
         query: `{
           bookings {
@@ -601,23 +605,21 @@ These are the rules I would turn into an AI testing skill later:
 A practical layout for this repo could be:
 
 ```text
-service/
+movie-reservation-service/
   test/
-    support/
-      factories/
-        booking.factory.ts
-      fakes/
-        fake-booking.repository.ts
-      fixtures/
-        booking-service.fixture.ts
-    application/
-      bookings.service.test.ts
-    infrastructure/
-      in-memory-booking.repository.test.ts
-    di/
-      bookings-composition.module.test.ts
+    unit/
+      application/
+      config/
+      domain/
+      infrastructure/
+    integration/
+      api/
+      application/
+      di/
+      infrastructure/
+      schema/
     e2e/
-      graphql.test.ts
+      postgres-movie-reservations.test.ts
 ```
 
 Do not create this whole structure upfront.
@@ -636,4 +638,3 @@ The current `BookingsService` test already follows the fake-first style:
 That is the right direction for this codebase.
 
 The next incremental improvement would be extracting reusable test support only after two or three tests need the same fake repository or booking factory.
-

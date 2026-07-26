@@ -192,7 +192,7 @@ For every inbound HTTP request:
 Current local fallback behavior is intentionally simple: if the caller does not
 send a correlation id, the API creates one per inbound request. That keeps every
 request searchable, but it does not create a true multi-request business
-workflow. The future React frontend should create or preserve one
+workflow. The React frontend creates or preserves one
 `X-Correlation-Id` for a full booking flow, while generating a fresh
 `X-Request-Id` for each backend call.
 

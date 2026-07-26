@@ -1,5 +1,8 @@
 # Implementation Plan: D6.1 Review Findings
 
+> Status: delivered with the D6 issue #3 / PR #17 follow-up work. Preserved as
+> implementation history.
+
 ## 1. Summary
 
 D6.1 addresses the most important findings from the read-only review of the D6

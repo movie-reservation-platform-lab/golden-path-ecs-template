@@ -261,6 +261,14 @@ Kubernetes Jobs: one migration entrypoint advances the schema before API tasks
 serve traffic. It also keeps database-specific code in infrastructure adapters
 while domain and application code stay plain TypeScript.
 
+For the future ECS/RDS path in issue #7, deployment orchestration must launch a
+separate ECS `RunTask`, wait for the migration container's terminal exit code,
+and only then update the API service. CDK owns the task definition, IAM, and
+networking resources, but the one-time invocation is a deployment action rather
+than a long-lived CloudFormation resource. The first orchestrator may run from
+a developer laptop; the later private promotion workflow should reuse the same
+task contract.
+
 ### Tradeoff
 
 Developers must run migrations and seeds explicitly when using Postgres mode.
@@ -482,7 +490,7 @@ override of the learning demo.
 
 ## ADR 017: Use Explicit VPC Endpoints Instead Of NAT For The First ECS Slice
 
-Status: accepted with a Wave 4 cost checkpoint.
+Status: accepted with another cost checkpoint before managed metrics.
 
 ### Decision
 
@@ -493,12 +501,13 @@ endpoints needed by the current workload:
 - ECR API interface endpoint;
 - ECR Docker interface endpoint;
 - CloudWatch Logs interface endpoint;
+- X-Ray interface endpoint for the two trace-write actions;
 - SSM Messages interface endpoint only when ECS Exec is enabled.
 
-Pin interface endpoints to the single selected workload subnet. Before Wave 4
-adds endpoints for X-Ray, AMP, STS, or other services, compare the complete
+Pin interface endpoints to the single selected workload subnet. Before issue
+#38 adds endpoints for AMP, STS, or other services, compare the complete
 region-specific endpoint cost and operational complexity with a NAT-based
-design.
+design again.
 
 ### Reason
 
@@ -568,3 +577,49 @@ not require extracting shared constructs or deploying additional services now.
 If future services require different trust boundaries, capacity strategies, or
 independent cluster lifecycles, create additional explicitly named clusters
 rather than treating this cluster as universally shared.
+
+---
+
+## ADR 019: Keep Application Telemetry Vendor-Neutral And Fail Open
+
+Status: accepted.
+
+### Decision
+
+Application processes emit traces and metrics through OpenTelemetry APIs,
+standard semantic conventions, W3C propagation, and OTLP configuration. They
+do not import the AWS X-Ray SDK or AWS telemetry clients. Collector placement,
+AWS exporters, credentials, IAM, and private network paths remain platform
+concerns.
+
+For the ECS trace path, run ADOT as a nonessential sidecar without an app
+container dependency. Keep the OTLP receiver on task loopback. OTel SDK
+construction and startup fail open, and SDK shutdown is bounded and best
+effort. Collector retry and batching are in memory only; telemetry loss during
+startup races, outages, restarts, or pressure is accepted.
+
+This availability policy applies to operational telemetry, not audit records.
+Any future audit trail needs its own durable, nonblocking delivery design and
+explicit failure policy.
+
+### Reason
+
+Application availability is more important than complete operational
+telemetry for this service. The standard OTel boundary also lets a future
+deployment replace X-Ray, move from a sidecar to a shared collector gateway, or
+route signals to multiple backends without adding provider-specific code to
+NestJS, Python, Rust, or domain/application layers.
+
+### Tradeoff
+
+Some spans and metrics will be missing when the collector or backend is
+unavailable. A nonessential collector can be unhealthy while ECS still reports
+the application task and service as healthy, so collector logs, container
+health, and an end-to-end trace smoke must be inspected separately. Issue #38
+or a later operations slice must add alerts for telemetry-path failure.
+
+The ECS task role is shared by all containers, so the app can technically use
+the two X-Ray write permissions granted for ADOT. A future shared gateway can
+isolate collector credentials. Production traffic must also replace the
+demo's deterministic `parentbased_always_on` sampler with an explicit sampling
+and cost policy.

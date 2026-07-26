@@ -1,5 +1,8 @@
 # Implementation Plan: Movie Reservation Web Stabilization Review Findings
 
+> Status: delivered as part of issue #23 / PR #33. Preserved as implementation
+> history.
+
 ## 1. Summary
 
 Stabilize the current `movie-reservation-web` branch after the frontend clean
@@ -100,7 +103,7 @@ Existing issue mapping:
   scalable monorepo CI, Playwright CI strategy, Docker/Postgres e2e strategy,
   and slower integration jobs.
 - `#29 Service/API: Move catalog read model assembly into application query
-  layer` owns backend read-model placement and should be expanded in docs to
+layer` owns backend read-model placement and should be expanded in docs to
   mention frontend catalog overfetch and selected-screening seat loading.
 - `#32 Service/API: Add idempotency handling for reservation commands` owns
   retrying client safety before production-like frontend use.
@@ -392,75 +395,81 @@ None.
    - Verification: Typecheck/build.
 
 10. Replace frontend `.env.example` with env template convention
-   - Change: Remove `movie-reservation-web/.env.example`; add
-     `movie-reservation-web/env_files/templates/local/local-dev.env.template`.
-   - Files/modules likely affected:
-     - `movie-reservation-web/.env.example`
-     - `movie-reservation-web/env_files/templates/local/local-dev.env.template`
-     - `movie-reservation-web/README.md`
-   - Notes: Rendered `movie-reservation-web/env_files/local/local-dev.env` is
-     already ignored by `.gitignore`.
-   - Verification: `git check-ignore` confirms rendered env ignored and
-     template not ignored.
+
+- Change: Remove `movie-reservation-web/.env.example`; add
+  `movie-reservation-web/env_files/templates/local/local-dev.env.template`.
+- Files/modules likely affected:
+  - `movie-reservation-web/.env.example`
+  - `movie-reservation-web/env_files/templates/local/local-dev.env.template`
+  - `movie-reservation-web/README.md`
+- Notes: Rendered `movie-reservation-web/env_files/local/local-dev.env` is
+  already ignored by `.gitignore`.
+- Verification: `git check-ignore` confirms rendered env ignored and
+  template not ignored.
 
 11. Update frontend dev script
-   - Change: Make `dev` delegate to `dev:local`, and make `dev:local` load
-     `env_files/local/local-dev.env` via `node --env-file`.
-   - Files/modules likely affected:
-     - `movie-reservation-web/package.json`
-     - `movie-reservation-web/README.md`
-   - Notes: Keep `check` independent of local rendered env files.
-   - Verification: `npm -w movie-reservation-web run check`; optionally start
-     `npm -w movie-reservation-web run dev` if the env file is rendered.
+
+- Change: Make `dev` delegate to `dev:local`, and make `dev:local` load
+  `env_files/local/local-dev.env` via `node --env-file`.
+- Files/modules likely affected:
+  - `movie-reservation-web/package.json`
+  - `movie-reservation-web/README.md`
+- Notes: Keep `check` independent of local rendered env files.
+- Verification: `npm -w movie-reservation-web run check`; optionally start
+  `npm -w movie-reservation-web run dev` if the env file is rendered.
 
 12. Add web workspace to current CI contract
-   - Change: Add web check to root `ci`; add separate GitHub Actions `web` job.
-   - Files/modules likely affected:
-     - root `package.json`
-     - `.github/workflows/ci.yml`
-     - `docs/workflows/ci-workflow.md`
-     - root `README.md`
-   - Notes: Document explicitly that this is the current small-repo contract and
-     that `#31` owns future path/affected filtering and slower e2e strategy.
-   - Verification: `npm run ci` if local Docker requirements are available;
-     otherwise run workspace checks and explain skipped service e2e constraints.
+
+- Change: Add web check to root `ci`; add separate GitHub Actions `web` job.
+- Files/modules likely affected:
+  - root `package.json`
+  - `.github/workflows/ci.yml`
+  - `docs/workflows/ci-workflow.md`
+  - root `README.md`
+- Notes: Document explicitly that this is the current small-repo contract and
+  that `#31` owns future path/affected filtering and slower e2e strategy.
+- Verification: `npm run ci` if local Docker requirements are available;
+  otherwise run workspace checks and explain skipped service e2e constraints.
 
 13. Soften Playwright README wording
-   - Change: Reword current frontend README so it does not claim Playwright
-     reports exist today.
-   - Files/modules likely affected:
-     - `movie-reservation-web/README.md`
-   - Notes: Mention future Playwright smoke/report work under #27/#31.
-   - Verification: Documentation review.
+
+- Change: Reword current frontend README so it does not claim Playwright
+  reports exist today.
+- Files/modules likely affected:
+  - `movie-reservation-web/README.md`
+- Notes: Mention future Playwright smoke/report work under #27/#31.
+- Verification: Documentation review.
 
 14. Clean up follow-up documentation
-   - Change: Update follow-up docs so deferred work maps to existing issues and
-     new gaps are issue-ready.
-   - Files/modules likely affected:
-     - `docs/plans/frontend-follow-up-triage.md`
-     - `docs/plans/distributed-observability-demo-platform.md`
-     - optionally `docs/plans/service-follow-up-tasks.md`
-   - Notes:
-     - Keep #27 for D8 frontend verification and Playwright smoke.
-     - Keep #31 for scalable CI and frontend/backend e2e strategy.
-     - Expand #29 docs to mention frontend overfetch and selected-screening
-       seat loading.
-     - Add issue-ready follow-up text for frontend OIDC/auth hardening if not
-       already covered.
-     - Add issue-ready follow-up text for frontend request resilience and local
-       failure demonstration if not already covered.
-   - Verification: Documentation review; no duplicate vague TODOs.
+
+- Change: Update follow-up docs so deferred work maps to existing issues and
+  new gaps are issue-ready.
+- Files/modules likely affected:
+  - `docs/plans/frontend-follow-up-triage.md`
+  - `docs/plans/distributed-observability-demo-platform.md`
+  - optionally `docs/plans/service-follow-up-tasks.md`
+- Notes:
+  - Keep #27 for D8 frontend verification and Playwright smoke.
+  - Keep #31 for scalable CI and frontend/backend e2e strategy.
+  - Expand #29 docs to mention frontend overfetch and selected-screening
+    seat loading.
+  - Add issue-ready follow-up text for frontend OIDC/auth hardening if not
+    already covered.
+  - Add issue-ready follow-up text for frontend request resilience and local
+    failure demonstration if not already covered.
+- Verification: Documentation review; no duplicate vague TODOs.
 
 15. Run verification
-   - Change: Run relevant checks.
-   - Files/modules likely affected: none.
-   - Notes: Prefer narrow checks while iterating, then full web check. Root `ci`
-     may require Docker because service `ci` includes e2e tests.
-   - Verification:
-     - `npm -w movie-reservation-web run typecheck`
-     - `npm -w movie-reservation-web test`
-     - `npm -w movie-reservation-web run check`
-     - `npm run ci` when local Docker/Testcontainers constraints are satisfied
+
+- Change: Run relevant checks.
+- Files/modules likely affected: none.
+- Notes: Prefer narrow checks while iterating, then full web check. Root `ci`
+  may require Docker because service `ci` includes e2e tests.
+- Verification:
+  - `npm -w movie-reservation-web run typecheck`
+  - `npm -w movie-reservation-web test`
+  - `npm -w movie-reservation-web run check`
+  - `npm run ci` when local Docker/Testcontainers constraints are satisfied
 
 ## 13. Testing Strategy
 
@@ -508,15 +517,15 @@ Rollback:
 
 ## 15. Risks and Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-|---|---:|---:|---|
-| Catalog normalization accidentally clears valid selections | Medium | Medium | Keep normalization pure and cover preserved-selection cases in domain tests. |
-| Stale seat validation hides a backend conflict demo | Low | Low | Only remove seats that do not belong to the active screening; already-reserved valid seats remain selectable until backend rejects them. |
-| Root `npm run ci` becomes too slow as the repo grows | Medium | High over time | Document current simple contract and point to #31 for affected/path-filtered CI. |
-| Dev-only bearer token test relies on brittle Vite env mocking | Medium | Medium | Add a small explicit env-reading seam only if needed; keep tests focused. |
-| Env script fails when rendered local env file is missing | Medium | Medium | README must document copying the template before `dev`; consider `--env-file-if-exists` only if explicit local profile enforcement becomes annoying. |
-| Raw errors disappear from diagnostics entirely | Low | Medium | Keep detailed errors in thrown objects/tests and browser console during development where useful. |
-| Follow-up docs duplicate existing issues | Low | Medium | Map deferred work to #27, #28, #29, #31, and #32 where possible before adding new issue-ready text. |
+| Risk                                                          | Impact |     Likelihood | Mitigation                                                                                                                                           |
+| ------------------------------------------------------------- | -----: | -------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Catalog normalization accidentally clears valid selections    | Medium |         Medium | Keep normalization pure and cover preserved-selection cases in domain tests.                                                                         |
+| Stale seat validation hides a backend conflict demo           |    Low |            Low | Only remove seats that do not belong to the active screening; already-reserved valid seats remain selectable until backend rejects them.             |
+| Root `npm run ci` becomes too slow as the repo grows          | Medium | High over time | Document current simple contract and point to #31 for affected/path-filtered CI.                                                                     |
+| Dev-only bearer token test relies on brittle Vite env mocking | Medium |         Medium | Add a small explicit env-reading seam only if needed; keep tests focused.                                                                            |
+| Env script fails when rendered local env file is missing      | Medium |         Medium | README must document copying the template before `dev`; consider `--env-file-if-exists` only if explicit local profile enforcement becomes annoying. |
+| Raw errors disappear from diagnostics entirely                |    Low |         Medium | Keep detailed errors in thrown objects/tests and browser console during development where useful.                                                    |
+| Follow-up docs duplicate existing issues                      |    Low |         Medium | Map deferred work to #27, #28, #29, #31, and #32 where possible before adding new issue-ready text.                                                  |
 
 ## 16. Done Criteria
 

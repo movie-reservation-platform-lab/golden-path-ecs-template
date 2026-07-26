@@ -1,5 +1,8 @@
 # Implementation Plan: Movie Reservation Web Clean Architecture Refactor
 
+> Status: delivered as part of issue #23 / PR #33. Preserved as implementation
+> history.
+
 ## 1. Summary
 
 Refactor `movie-reservation-web` so the movie reservation feature has explicit
@@ -176,12 +179,12 @@ If needed, rollback is reverting the frontend workspace changes.
 
 ## 15. Risks and Mitigations
 
-| Risk | Impact | Likelihood | Mitigation |
-|---|---:|---:|---|
-| Import churn causes broken build | Medium | Medium | Run TypeScript and full web check. |
-| Runtime parser rejects a valid backend shape | Medium | Low | Match current resolver fields and add parser tests. |
-| Polling cancellation regresses | Medium | Low | Preserve run id guard in the controller hook. |
-| Observability propagation regresses | Medium | Low | Keep GraphQL operation names and `requestGraphql` header behavior stable. |
+| Risk                                         | Impact | Likelihood | Mitigation                                                                |
+| -------------------------------------------- | -----: | ---------: | ------------------------------------------------------------------------- |
+| Import churn causes broken build             | Medium |     Medium | Run TypeScript and full web check.                                        |
+| Runtime parser rejects a valid backend shape | Medium |        Low | Match current resolver fields and add parser tests.                       |
+| Polling cancellation regresses               | Medium |        Low | Preserve run id guard in the controller hook.                             |
+| Observability propagation regresses          | Medium |        Low | Keep GraphQL operation names and `requestGraphql` header behavior stable. |
 
 ## 16. Done Criteria
 
