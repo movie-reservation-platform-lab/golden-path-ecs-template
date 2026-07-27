@@ -1,6 +1,6 @@
 # Platform Follow-up Tasks
 
-Last reviewed: 2026-07-26
+Last reviewed: 2026-07-27
 
 This file tracks platform, CI/CD, infrastructure workflow, and delivery-system follow-ups that are intentionally outside the current implementation slice.
 
@@ -59,6 +59,15 @@ owns the next concrete CI strategy wave: frontend/browser verification,
 Docker/Postgres e2e execution, and scalable workspace selection. The remaining
 items below are design inputs, not separately committed deliverables.
 
+- Review the repository testing strategy under issue
+  [#40](https://github.com/patex1987/golden-path-ecs-template/issues/40).
+  This should cover service tests, infra CDK assertions, shell validation,
+  deployed smoke tests, and CI placement. The goal is to remove or simplify
+  brittle over-specified tests, keep high-signal contract coverage, and decide
+  which smoke tests should become deployment gates versus local/manual checks.
+  Do this after the current observability and architecture direction settles
+  enough for the review to be worth the effort; do not block current feature
+  progress on perfecting the whole test suite.
 - Define a dependency audit policy before making audit checks blocking. Decide severity thresholds, dev-dependency handling, exception workflow, and whether to use `npm audit`, GitHub Dependabot alerts, dependency review, or a combination.
 - Revisit GitHub Actions supply-chain hardening. CI-1 pins official actions by major version; future work may require exact SHA pins, allowlisted actions, internal mirrored actions, Dependabot updates for action versions, or policy-as-code checks.
 - Investigate CI caching strategy deeply before adding custom caches. Cover npm cache boundaries, monorepo cache boundaries, Docker layer caching, build artifacts, remote caches, cache poisoning risks, and invalidation policy.
