@@ -6,7 +6,8 @@ deployed application resources afterward.
 
 The current stack is a learning/demo environment, not a production deployment.
 It creates resources that incur charges while they exist, including one Fargate
-task, an Application Load Balancer, and four interface VPC endpoints.
+task, an Application Load Balancer, four interface VPC endpoints, CloudWatch
+Logs ingestion, and CloudWatch custom application metrics.
 
 ## Identity recommendation
 
@@ -213,6 +214,13 @@ The current configuration rejects `0.0.0.0/0`. The `/32` lets only this public
 IPv4 address reach the ALB listener on port 80. Refresh the value after changing
 Wi-Fi networks, enabling or disabling a VPN, or receiving a new public IP.
 
+Application metrics export every 30 seconds by default. The optional
+`metricsExportIntervalSeconds` CDK context accepts an integer from `5` through
+`300`; append, for example, `-c metricsExportIntervalSeconds=45` to every CDK
+command in a session when testing a nondefault cadence. The value becomes
+milliseconds for the Node.js OTel SDK and an OTel duration for ADOT. The
+commands below intentionally use the default.
+
 ## Bootstrap the account and Region
 
 Bootstrap once for each account/Region pair. If `CDKToolkit` already exists in
@@ -280,6 +288,7 @@ npm -w ecs-infra run build
 npm -w ecs-infra test -- --runInBand
 npm -w ecs-infra run validate:adot-image
 npm -w ecs-infra run validate:xray-smoke
+npm -w ecs-infra run validate:managed-metrics-smoke
 ```
 
 List and synthesize the stack:
@@ -318,10 +327,13 @@ npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
 
-For the initial deployment, expect an entirely new stack. Stop if the diff
-targets the wrong account/Region, opens ingress beyond the `/32`, adds NAT,
-adds issue #38 metrics/Grafana resources, removes an unexpected resource, or
-grants X-Ray actions beyond `PutTraceSegments` and `PutTelemetryRecords`.
+For the initial deployment, expect an entirely new stack. For the PR 1 update,
+expect the application-metrics log group, task-definition environment changes,
+the namespace output, and task-role log-stream writes. Stop if the diff targets
+the wrong account/Region, opens ingress beyond the `/32`, adds NAT, adds
+AMP/Grafana resources, removes an unexpected resource, grants X-Ray actions
+beyond `PutTraceSegments` and `PutTelemetryRecords`, or grants CloudWatch
+permissions beyond the named EMF log group.
 
 ## Deploy
 
@@ -363,6 +375,7 @@ GoldenPathDemoStack: creating CloudFormation changeset...
  ✅  GoldenPathDemoStack
 
 Outputs:
+GoldenPathDemoStack.CloudWatchApplicationMetricsNamespace = GoldenPath/aws-demo/movie-reservation-service
 GoldenPathDemoStack.LoadBalancerDnsName = <generated-alb-name>.eu-central-1.elb.amazonaws.com
 Stack ARN:
 arn:aws:cloudformation:eu-central-1:123456789012:stack/GoldenPathDemoStack/<generated-id>
@@ -461,11 +474,11 @@ aws logs tail \
   --region "$AWS_REGION"
 ```
 
-Expected startup entries name the OTLP receiver, memory limiter, batch
-processor, X-Ray exporter, and health extension. Permission, endpoint, retry,
-and export failures also appear here. Issue #37 intentionally creates no
-collector health alarm or Container Insights metric; issue #38 owns that
-follow-up.
+Expected startup entries name the OTLP receiver, memory limiter, attributes and
+batch processors, X-Ray and CloudWatch EMF exporters, and health extension.
+Permission, endpoint, retry, and export failures also appear here. The
+collector remains nonessential, so a healthy application does not prove either
+telemetry destination is receiving data.
 
 ### Run the deterministic X-Ray smoke
 
@@ -486,6 +499,39 @@ HTTP, GraphQL, X-Ray query, trace timeout, or wrong-service-segment failures.
 is enabled in the account, AWS documents that this API cannot retrieve those
 traces; revisit the smoke query before enabling that account feature.
 
+### Run the CloudWatch application-metrics smoke
+
+```bash
+npm -w ecs-infra run smoke:managed-metrics -- \
+  --stack GoldenPathDemoStack \
+  --report /tmp/golden-path-managed-metrics-smoke.json
+```
+
+The script reads the ALB and CloudWatch namespace from stack outputs, discovers
+a real screening and its seats, and submits at most 12 reservation requests. It
+rotates through seats until a request confirms, then reuses that confirmed seat
+to produce either a failure from the deterministic 40% injection policy or a
+rejection because the seat is already reserved. It then waits through two
+default export intervals and polls CloudWatch `GetMetricData` for
+`graphql_operation_total`.
+
+The JSON report contains only aggregate outcome counts, the namespace, metric
+name, target, Region, and timing. It excludes request IDs, seat IDs, response
+bodies, account IDs, and credentials. A failure stage distinguishes stack
+output, catalog, reservation, CloudWatch API, and missing-datapoint failures.
+
+When deploying with a nondefault metric cadence, set the pre-query wait to at
+least two intervals:
+
+```bash
+MANAGED_METRICS_SMOKE_SETTLE_SECONDS=90 \
+  npm -w ecs-infra run smoke:managed-metrics -- --stack GoldenPathDemoStack
+```
+
+PR 1 proves only the CloudWatch application path. AMP, ADOT-collected ECS
+metrics, enhanced Container Insights, and Managed Grafana arrive in the next
+two sequential PRs for issue #38.
+
 ## Redeploy after a change
 
 For later iterations, start a new deployment session, verify the identity,
@@ -496,6 +542,7 @@ npm -w ecs-infra run build
 npm -w ecs-infra test -- --runInBand
 npm -w ecs-infra run validate:adot-image
 npm -w ecs-infra run validate:xray-smoke
+npm -w ecs-infra run validate:managed-metrics-smoke
 
 npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   --profile "$AWS_PROFILE" \
@@ -568,11 +615,14 @@ aws ecs describe-clusters \
   --query 'clusters[].{Name:clusterName,Status:status}'
 ```
 
-The log group query should return an empty list. ECS can temporarily report the
-deleted cluster as `INACTIVE`. The successful CloudFormation stack deletion is
-the authoritative lifecycle result for stack-owned resources. X-Ray retains
-ingested traces for 30 days independently of this stack, so `cdk destroy` does
-not erase the smoke trace immediately.
+The log group query should return an empty list, including the stack-owned
+`metrics` EMF group. ECS can temporarily report the deleted cluster as
+`INACTIVE`. The successful CloudFormation stack deletion is the authoritative
+lifecycle result for stack-owned resources. X-Ray retains ingested traces for
+30 days independently of this stack, so `cdk destroy` does not erase the smoke
+trace immediately. CloudWatch custom metric datapoints also cannot be deleted
+explicitly: removing the task and EMF log group stops new publication, while
+historical datapoints age out under CloudWatch's service retention.
 
 If deletion fails, inspect the first failing event before manually changing any
 resource:
@@ -659,7 +709,9 @@ Region:
 - one Application Load Balancer, its capacity units, and public IPv4 usage;
 - four interface endpoints, each deployed in one Availability Zone, plus data
   processing;
-- CloudWatch Logs ingestion and retained data;
+- CloudWatch Logs ingestion and retained app, collector, and EMF data;
+- CloudWatch custom metrics created from the ten declared application
+  instruments and their bounded dimension combinations;
 - ECR and S3 storage for CDK assets;
 - normal data transfer charges.
 
@@ -667,11 +719,13 @@ The S3 gateway endpoint has no hourly endpoint charge. The stack deliberately
 uses no NAT Gateway. Setting `enableEcsExec=true` adds a fifth interface
 endpoint and therefore another hourly endpoint cost.
 
-After `cdk destroy`, the Fargate task, ALB, VPC endpoints, VPC, and app/ADOT log
-groups should be gone. The bootstrap asset storage remains until its lifecycle
-rules or `cdk gc` remove unused objects and images. X-Ray trace data follows its
-30-day service retention instead of CloudFormation lifecycle. Billing data and
-budget notifications can lag behind resource deletion.
+After `cdk destroy`, the Fargate task, ALB, VPC endpoints, VPC, and all three
+service log groups should be gone. No emitter remains to publish new custom
+metric datapoints. The bootstrap asset storage remains until its lifecycle
+rules or `cdk gc` remove unused objects and images. X-Ray traces and historical
+CloudWatch metric datapoints follow their service retention instead of
+CloudFormation lifecycle. Billing data and budget notifications can lag behind
+resource deletion.
 
 ## Common failures
 
@@ -736,6 +790,23 @@ Rollback by redeploying the previous known-good revision or destroy the
 disposable stack. Do not make ADOT essential as a workaround: that would turn a
 telemetry failure into an application outage.
 
+### Managed metrics smoke times out
+
+Confirm the app and ADOT containers are running, then inspect the collector log
+for `awsemf/application`, credential, throttling, or `PutLogEvents` errors.
+Verify that the task role can call only `logs:CreateLogStream` and
+`logs:PutLogEvents` on
+`/golden-path/aws-demo/movie-reservation-service/metrics`, and that the existing
+CloudWatch Logs interface endpoint is healthy. No CloudWatch Metrics endpoint
+is required because ADOT writes EMF events through the Logs API.
+
+If reservation outcome generation fails, inspect application logs for the fake
+worker and failure-injection configuration before increasing attempt limits.
+If outcomes pass but the metric is late, query the EMF log group and allow for
+CloudWatch ingestion delay. Roll back by redeploying the previous task
+definition or destroy the stack; telemetry failure must not be worked around by
+making ADOT essential.
+
 ## Official references
 
 - [IAM security best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
@@ -752,3 +823,5 @@ telemetry failure into an application outage.
 - [Elastic Load Balancing pricing](https://aws.amazon.com/elasticloadbalancing/pricing/)
 - [AWS PrivateLink pricing](https://aws.amazon.com/privatelink/pricing/)
 - [Amazon VPC pricing](https://aws.amazon.com/vpc/pricing/)
+- [ADOT CloudWatch metrics](https://aws-otel.github.io/docs/getting-started/cloudwatch-metrics/)
+- [CloudWatch Embedded Metric Format](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format.html)

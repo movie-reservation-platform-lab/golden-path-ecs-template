@@ -16,8 +16,8 @@ Status update, 2026-07-26:
   is delivered by PR #39: ADOT collector sidecar and X-Ray traces are now part
   of the ECS baseline.
 - [Issue #38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
-  is the current planned slice: CloudWatch metrics, AMP, and Amazon Managed
-  Grafana.
+  is in progress. Its first sequential PR adds CloudWatch application metrics;
+  later PRs add AMP/ECS metrics and Amazon Managed Grafana.
 - The AWS observability slices use the existing in-memory service. A Postgres
   sidecar is no longer part of this plan. RDS and deployment-time migrations via
   a separate ECS `RunTask` remain under issue #7.

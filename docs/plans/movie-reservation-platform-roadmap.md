@@ -81,9 +81,9 @@ Managed Grafana and build the first useful dashboard.
 
 The focused three-PR implementation plan is
 [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
-The first slice proves CloudWatch metrics from the existing in-memory service,
-the second adds AMP remote write and ECS metrics, and the third adds Managed
-Grafana and the initial dashboard.
+The first slice, now in progress, proves CloudWatch metrics from the existing
+in-memory service. The second adds AMP remote write and ECS metrics, and the
+third adds Managed Grafana and the initial dashboard.
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).

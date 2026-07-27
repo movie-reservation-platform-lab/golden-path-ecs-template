@@ -43,7 +43,7 @@ flowchart TB
           direction LR
           app["Essential app<br/>TCP 3000<br/>384 CPU / 640 MiB"]
           adot["Nonessential ADOT<br/>128 CPU / 384 MiB<br/>health 13133"]
-          app -->|"OTLP/HTTP traces<br/>127.0.0.1:4318"| adot
+          app -->|"OTLP/HTTP traces + metrics<br/>127.0.0.1:4318"| adot
         end
         interfaceEndpoints["Interface VPC endpoints<br/>ECR API + ECR Docker<br/>CloudWatch Logs + X-Ray<br/>SSM Messages optional"]
         s3Endpoint["S3 gateway endpoint"]
@@ -61,7 +61,7 @@ flowchart TB
 
     ecr["Amazon ECR<br/>app + ADOT CDK assets"]
     s3["Amazon S3<br/>ECR image layers"]
-    logs["CloudWatch Logs<br/>app + ADOT log groups"]
+    logs["CloudWatch<br/>app + ADOT + EMF log groups<br/>custom application metrics"]
     xray["AWS X-Ray<br/>trace segments"]
     ssm["SSM Messages<br/>optional ECS Exec"]
 
@@ -103,7 +103,7 @@ flowchart TB
       direction LR
       ecr["Amazon ECR<br/>CDK asset repository<br/>app + ADOT images"]
       s3["Amazon S3<br/>ECR image layers"]
-      cloudwatch["CloudWatch Logs<br/>app + ADOT log groups<br/>7-day retention"]
+      cloudwatch["CloudWatch<br/>app + ADOT + EMF log groups<br/>custom application metrics<br/>7-day log retention"]
       xray["AWS X-Ray<br/>trace segments"]
       ssm["SSM Messages<br/>ECS Exec channels"]
     end
@@ -114,7 +114,7 @@ flowchart TB
       service["Fargate service<br/>desired count: 1<br/>deployment rollback enabled<br/>health grace: 60s"]
       taskDefinition["Fargate task definition<br/>512 CPU units / 1024 MiB<br/>essential app + nonessential ADOT<br/>separate awslogs drivers"]
       executionRole["Task execution role<br/>image pull + log delivery"]
-      taskRole["Shared task role<br/>X-Ray writes<br/>+ ECS Exec when enabled"]
+      taskRole["Shared task role<br/>X-Ray writes + scoped EMF log writes<br/>+ ECS Exec when enabled"]
 
       cluster -->|"hosts"| service
       taskDefinition -->|"used by"| service
@@ -156,7 +156,7 @@ flowchart TB
         task -->|"HTTPS 443<br/>auth + metadata"| ecrApiEndpoint
         task -->|"HTTPS 443<br/>image manifest"| ecrDockerEndpoint
         task -->|"image layers"| s3Endpoint
-        task -->|"HTTPS 443<br/>application logs"| logsEndpoint
+        task -->|"HTTPS 443<br/>app/ADOT logs + EMF events"| logsEndpoint
         task -->|"HTTPS 443<br/>trace writes"| xrayEndpoint
         task -.->|"HTTPS 443<br/>enableEcsExec=true"| ssmEndpoint
       end
@@ -196,6 +196,7 @@ flowchart TB
     executionRole -. "permits log writes" .-> cloudwatch
     taskRole -. "permits Exec when enabled" .-> ssm
     taskRole -. "permits two write actions" .-> xray
+    taskRole -. "permits stream + event writes<br/>to named EMF log group" .-> cloudwatch
   end
 
   classDef network fill:#eaf4ff,stroke:#2563eb,color:#111827
@@ -243,8 +244,18 @@ flowchart TB
   `/healthcheck` command and restart policy; collector failure does not make the
   app container or task unhealthy.
 - **Telemetry boundary:** the application emits standard OTLP and W3C context.
-  ADOT owns AWS credentials and X-Ray translation. There are no task security
-  group rules for ports 4318 or 13133 because both listeners use task loopback.
+  ADOT owns AWS credentials, X-Ray translation, CloudWatch dimension shaping,
+  and EMF publication. There are no task security group rules for ports 4318 or
+  13133 because both listeners use task loopback. EMF uses the existing
+  CloudWatch Logs endpoint rather than a CloudWatch Metrics endpoint.
+- **Application metrics:** the Node.js SDK exports every 30 seconds by default,
+  and typed CDK context can set an integer cadence from 5 through 300 seconds.
+  ADOT disables automatic dimension rollups and exports only the ten declared
+  instruments under
+  `GoldenPath/aws-demo/movie-reservation-service`. `ServiceName`,
+  `Environment`, and metric-specific bounded attributes form the only
+  CloudWatch dimensions. AMP, ECS task/container metrics, enhanced Container
+  Insights, and Grafana remain outside this first issue #38 pull request.
 - **Trace privacy:** the X-Ray exporter keeps `index_all_attributes: false` and
   configures no indexed attributes. The current `enduser.id` span attribute is
   nevertheless stable/linkable and maps to X-Ray's dedicated `user` field; the

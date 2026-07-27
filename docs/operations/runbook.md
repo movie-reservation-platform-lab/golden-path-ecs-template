@@ -317,14 +317,21 @@ Current checks for the in-memory ECS/ADOT stack:
   state without gating app availability;
 - app JSON logs and collector diagnostics arrive in separate CloudWatch log
   groups;
+- the fake in-process worker produces both confirmed and failed/rejected
+  reservation outcomes under the development-only deterministic injection
+  policy;
+- `npm -w ecs-infra run smoke:managed-metrics` finds
+  `graphql_operation_total` in
+  `GoldenPath/aws-demo/movie-reservation-service`;
 - `npm -w ecs-infra run smoke:xray` finds the exact generated trace and
   `movie-reservation-service` segment through `BatchGetTraces`;
-- the task role and X-Ray endpoint policy expose only `PutTraceSegments` and
-  `PutTelemetryRecords`;
-- no metrics/AMP/Grafana or database resources appear before their own issues.
+- the task role has only the two X-Ray write actions plus stream/event writes
+  scoped to the stack-owned EMF log group;
+- no AMP, enhanced Container Insights, Managed Grafana, alarm, or database
+  resources appear before their own PRs/issues.
 
-Use the exact AWS CLI inspection, trace smoke, rollback, and teardown commands
-in [the local CDK deployment runbook](aws-cdk-local-deployment.md).
+Use the exact AWS CLI inspection, metric/trace smoke, rollback, and teardown
+commands in [the local CDK deployment runbook](aws-cdk-local-deployment.md).
 
 Future checks remain separate: issue #7 must prove the RDS migration `RunTask`,
 and issue #8 must prove independently deployable API/worker signaling.

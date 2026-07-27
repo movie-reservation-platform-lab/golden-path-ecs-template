@@ -1,6 +1,6 @@
 # Implementation Plan: Issue #38 ECS Managed Metrics And Grafana
 
-Status: planned
+Status: in progress (PR 1 of 3)
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
@@ -340,12 +340,18 @@ Configure `awsemf` with:
   `GoldenPath/aws-demo/movie-reservation-service`.
 - The explicit metrics log group.
 - `NoDimensionRollup`.
-- Resource-to-telemetry conversion only for curated resource attributes.
+- Disabled resource-to-telemetry conversion; add only the two curated identity
+  dimensions with the attributes processor.
 - Metric declarations for the ten known application instruments.
 
-Create stable `ServiceName` and `Environment` dimensions from
-`service.name` and `deployment.environment.name`. Use these metric-specific
-dimensions:
+Create stable `ServiceName` and `Environment` dimensions from the same typed
+CDK service/environment identity used to configure `service.name` and
+`deployment.environment.name`. The pinned ADOT `v0.48.0` image does not include
+the transform processor, as proven by real-image validation during PR 1.
+Therefore, pass the two validated values to ADOT and add them with the supported
+attributes processor while keeping EMF resource-to-telemetry conversion
+disabled. This avoids promoting unrelated host/process resource attributes.
+Use these metric-specific dimensions:
 
 | Metric family | Additional CloudWatch dimensions |
 | --- | --- |
