@@ -1,6 +1,6 @@
 # Distributed Observability Demo Platform Adoption Plan
 
-Last reviewed: 2026-07-17
+Last reviewed: 2026-07-26
 
 ## Purpose And Status
 
@@ -109,7 +109,7 @@ integration.
 - Run each repository's focused checks before integrating the topology.
 
 The three repository reviews can run in parallel with each other and with the
-AWS #37/#38 work.
+AWS #38 metrics/Grafana work.
 
 ### Package D: Topology And Integrated Verification
 

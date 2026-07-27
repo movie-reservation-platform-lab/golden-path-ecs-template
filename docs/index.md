@@ -47,8 +47,8 @@ Plan lifecycle:
 Active documents:
 
 - [movie-reservation-platform-roadmap.md](plans/movie-reservation-platform-roadmap.md) - canonical milestone status and delivery order.
-- [ecs-adot-xray-tracing.md](plans/ecs-adot-xray-tracing.md) - focused implementation plan and source of truth for issue #37 on the current branch.
-- [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - umbrella AWS managed-observability background retained primarily for issue #38; it is not the #37 implementation plan.
+- [ecs-adot-managed-metrics-grafana.md](plans/ecs-adot-managed-metrics-grafana.md) - implementation-ready three-PR plan for issue #38 CloudWatch, AMP, ECS metrics, and Managed Grafana.
+- [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - non-executable AWS managed-observability umbrella retained as background for issue #38 and later AWS telemetry work.
 - [movie-reservation-frontend-product-requirements.md](plans/movie-reservation-frontend-product-requirements.md) - product and UX acceptance bar for the remaining D8 frontend work.
 - [frontend-follow-up-triage.md](plans/frontend-follow-up-triage.md) - current D8 issue reconciliation and sequencing.
 - [production-observability-dashboard.md](plans/production-observability-dashboard.md) - issue #30 dashboard, alerting, saturation, and operational follow-up.
@@ -58,18 +58,7 @@ Active documents:
 
 Delivered implementation records:
 
-- [nestjs-service-migration.md](plans/delivered/nestjs-service-migration.md)
-- [d4-graphql-polling-api.md](plans/delivered/d4-graphql-polling-api.md)
-- [d5-in-process-processor-contract.md](plans/delivered/d5-in-process-processor-contract.md)
-- [d6-docker-compose-postgres-knex.md](plans/delivered/d6-docker-compose-postgres-knex.md)
-- [d6-1-review-findings.md](plans/delivered/d6-1-review-findings.md)
-- [service-di-composition-breakdown.md](plans/delivered/service-di-composition-breakdown.md)
-- [github-actions-ci-foundation.md](plans/delivered/github-actions-ci-foundation.md)
-- [local-observability-foundation.md](plans/delivered/local-observability-foundation.md)
-- [d8a-rebase-frontend-spike.md](plans/delivered/d8a-rebase-frontend-spike.md)
-- [movie-reservation-web-orchestrator-refactor.md](plans/delivered/movie-reservation-web-orchestrator-refactor.md)
-- [movie-reservation-web-clean-architecture-refactor.md](plans/delivered/movie-reservation-web-clean-architecture-refactor.md)
-- [movie-reservation-web-stabilization-review-findings.md](plans/delivered/movie-reservation-web-stabilization-review-findings.md)
+- [delivered/README.md](plans/delivered/README.md) - index of archived implementation plans, including the delivered #37 ADOT/X-Ray tracing plan.
 
 ## `learning/`
 

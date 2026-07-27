@@ -1,12 +1,15 @@
 # Implementation Plan: ECS ADOT To X-Ray Tracing
 
+> Status: delivered by issue #37 / PR #39. Preserved as implementation
+> history. Do not use this as the active #38 metrics/Grafana plan.
+
 Issue: [#37](https://github.com/patex1987/golden-path-ecs-template/issues/37)
 
 Branch: `37-ecs-adot-collector-xray`
 
-Status: Implemented locally; laptop AWS acceptance pending
+Status: Delivered on `main`
 
-Last reviewed: 2026-07-18
+Last reviewed: 2026-07-26
 
 ## 1. Summary
 
@@ -1267,12 +1270,14 @@ There is no data migration.
   and health binary.
 - [x] Credential-free service, infrastructure, collector, smoke-tool, and synth
   checks pass.
-- [ ] Laptop AWS acceptance and teardown pass.
+- [x] Laptop AWS acceptance and teardown pass.
 
-## 18. Handoff Prompt For Implementation Agent
+## 18. Historical Handoff Prompt
 
 ```text
-Implement docs/plans/ecs-adot-xray-tracing.md on the current
+Historical prompt preserved from the #37 implementation branch.
+
+Implement docs/plans/delivered/ecs-adot-xray-tracing.md on the
 37-ecs-adot-collector-xray branch for GitHub issue #37.
 
 Treat that focused plan as the source of truth. Do not implement #37 from the

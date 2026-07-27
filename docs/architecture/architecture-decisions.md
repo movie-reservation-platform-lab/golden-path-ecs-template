@@ -623,3 +623,47 @@ the two X-Ray write permissions granted for ADOT. A future shared gateway can
 isolate collector credentials. Production traffic must also replace the
 demo's deterministic `parentbased_always_on` sampler with an explicit sampling
 and cost policy.
+
+---
+
+## ADR 020: Treat CloudWatch Metrics As A Curated Projection
+
+Status: accepted.
+
+### Decision
+
+Treat the ADOT `awsemf` `metric_declarations` in
+`ecs-infra/adot-collector/adot-config.yaml` as the CloudWatch metric
+publication contract.
+
+CloudWatch receives only the curated operational and KPI metrics needed for
+alarms, dashboards, smoke checks, and executive-visible service health. The
+CloudWatch projection must explicitly control which metric names are exported
+and which attributes become CloudWatch dimensions.
+
+Amazon Managed Service for Prometheus can retain a broader OpenTelemetry metric
+catalog, still with explicit label and cardinality discipline. CloudWatch must
+not be a raw dump of every metric and attribute the application emits.
+
+### Reason
+
+CloudWatch custom metrics are keyed by namespace, metric name, dimension set,
+and dimension values. Every new dimension shape or high-cardinality dimension
+can multiply custom metrics and cost. The EMF exporter declarations are the
+place where the platform intentionally maps the application metric contract
+onto the smaller CloudWatch contract.
+
+This keeps the application free to emit useful OpenTelemetry metrics while
+preventing accidental attributes such as ids, raw URLs, optional reasons, or
+tenant-like values from becoming CloudWatch dimensions.
+
+### Tradeoff
+
+The explicit declarations add YAML and must evolve with the metric contract.
+That is acceptable for the current single-service slice because it makes cost
+and dashboard behavior visible.
+
+For a multi-service platform, do not hand-maintain large copied declaration
+blocks across services. Move toward a small metric manifest or registry that
+generates ADOT `metric_declarations`, dashboard assumptions, alarm inputs, and
+CI validation from one source of truth.

@@ -1,21 +1,23 @@
 # Umbrella Design: ECS ADOT Managed Observability
 
-> **Issue #37 implementation notice:**
-> [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md) is the source of truth
-> for the current branch. This document is an umbrella design retained mainly
-> for #38 and later background. Do not implement #37 from sections below. Where
-> the documents differ, the focused #37 plan takes precedence.
+> **Status notice:**
+> This document is background material, not an executable implementation
+> handoff. Issue #37 is delivered; its historical plan lives in
+> [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
+> The focused #38 implementation handoff now lives in
+> [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
+> Use the still-relevant sections below only as background.
 
-Status update, 2026-07-17:
+Status update, 2026-07-26:
 
 - Wave 1 failure injection and Wave 2 ECS backend skeleton are delivered.
 - The Wave 2 stack was deployed successfully from a laptop and destroyed.
 - [Issue #37](https://github.com/patex1987/golden-path-ecs-template/issues/37)
-  is the current slice: ADOT collector sidecar and X-Ray traces. Its focused
-  implementation plan is
-  [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md).
+  is delivered by PR #39: ADOT collector sidecar and X-Ray traces are now part
+  of the ECS baseline.
 - [Issue #38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
-  follows with CloudWatch metrics, AMP, and Amazon Managed Grafana.
+  is in progress. Its first sequential PR adds CloudWatch application metrics;
+  later PRs add AMP/ECS metrics and Amazon Managed Grafana.
 - The AWS observability slices use the existing in-memory service. A Postgres
   sidecar is no longer part of this plan. RDS and deployment-time migrations via
   a separate ECS `RunTask` remain under issue #7.
@@ -38,11 +40,12 @@ Also add demo-only reservation failure injection so roughly 40% of reservation
 requests fail as a production-looking `unexpected-error`. The goal is an
 on-call style investigation scenario, not a clearly labelled demo fault.
 
-Recommended next slice: extend the delivered `demo` CDK stack with one custom
-ADOT sidecar container and export the current in-memory service's traces to
-X-Ray. Add CloudWatch metrics, AMP, and Managed Grafana in the following issue.
-Keep RDS, production OIDC, full CI/CD deployment automation, and the
-multi-service agent/MCP infrastructure as later slices.
+Recommended next slice: create a focused #38 plan, then extend the delivered
+ADOT/X-Ray baseline with bounded metrics. Prove the simplest CloudWatch
+application-metric path first, then add AMP remote write, ECS/container metric
+coverage, and Managed Grafana dashboarding once cost, regional support, and
+identity choices are explicit. Keep RDS, production OIDC, full CI/CD deployment
+automation, and the multi-service agent/MCP infrastructure as later slices.
 
 Recommended follow-up slice: add CI observability for GitHub Actions with a
 separate `workflow_run` telemetry workflow. Emit low-cardinality CloudWatch
@@ -110,7 +113,12 @@ GitHub runners and do not ship full GitHub job logs into AWS.
 - Wave 2 is delivered on `main`: the explicit backend stack contains a VPC,
   ALB, Fargate service, app image asset, log group, and the minimum no-NAT
   endpoints. It has been deployed successfully from a laptop and destroyed.
-  ADOT, X-Ray, CloudWatch metrics, AMP, and AMG remain active work.
+- Issue #37 is delivered on `main`: the stack has a repo-managed ADOT collector
+  sidecar, app OTLP trace export, a private X-Ray endpoint, least-privilege
+  X-Ray write policies, validation scripts, trace smoke tooling, and runbook
+  updates.
+- CloudWatch metrics, AMP, and AMG remain active #38 planning and
+  implementation work.
 - `ecs-infra/package.json` already has `aws-cdk-lib`, `constructs`, Jest,
   TypeScript, and scripts for `build`, `test`, `cdk`, and `ci`.
 - `movie-reservation-service/Dockerfile` already builds the compiled NestJS
@@ -153,7 +161,7 @@ GitHub runners and do not ship full GitHub job logs into AWS.
 - `docs/workflows/ci-workflow.md` documents the current CI foundation as
   deployment-free. CI observability should extend that contract without turning
   every pull request into a deployment pipeline.
-- Issue #37 owns the repo-managed ADOT image, collector sidecar, app OTLP
+- Issue #37 delivered the repo-managed ADOT image, collector sidecar, app OTLP
   enablement, X-Ray IAM/networking, tests, and AWS trace smoke check.
 - Issue #38 owns CloudWatch metric export, AMP remote write, Managed Grafana,
   bounded dimensions, tests, and the managed-metrics smoke check.
@@ -238,7 +246,8 @@ Official AWS sources checked:
   type.
 - Keep the first AWS implementation on the Option C cost/security path:
   public ALB, private ECS tasks, VPC endpoints, and no NAT Gateway.
-- Keep #37 and #38 on the current in-memory ECS composition profile.
+- Keep the delivered #37 baseline and current #38 work on the in-memory ECS
+  composition profile.
 - Add RDS later under #7 and execute migrations as a separate ECS `RunTask`
   during deployment, analogous to a Kubernetes Job.
 - Start with only `movie-reservation-service` in AWS. Add MCP services, agents,
@@ -335,8 +344,8 @@ Use Option C for the first AWS stack:
   workload subnet to avoid paying for duplicate endpoint coverage before HA is
   required.
 - Required AWS service traffic goes through VPC gateway/interface endpoints.
-- The service stays in-memory for #37 and #38. RDS and migrations are a later
-  deployment concern under #7.
+- The service stayed in-memory for #37 and stays in-memory for #38. RDS and
+  migrations are a later deployment concern under #7.
 - The ALB must be source-IP restricted with an explicit `allowedIngressCidr`
   config value for the Phase 1 backend-only demo.
 - ECS Exec should be controlled by an explicit `enableEcsExec` config flag.
@@ -358,16 +367,16 @@ This maps to CDK and CloudFormation as follows:
 - `ec2.Vpc` becomes VPC, public subnets for the ALB, private subnets for ECS
   tasks, route tables, and gateway/interface endpoints. The recommended path
   does not create NAT Gateway resources.
-- `ecs.Cluster` becomes an ECS cluster. Keep Container Insights disabled for
-  #37; #38 may enable enhanced observability after its cost and metric scope are
-  reviewed.
+- `ecs.Cluster` becomes an ECS cluster. Keep Container Insights disabled for the
+  delivered #37 baseline; #38 may enable enhanced observability after its cost
+  and metric scope are reviewed.
 - `ecs.FargateTaskDefinition` becomes an ECS task definition with task and
   execution IAM roles.
 - `taskDefinition.addContainer` creates app and ADOT container definitions.
-- In #37 the app and nonessential collector start independently, with no ECS
-  container dependency. The app's `/health` check remains the service health
-  boundary; collector health is visible separately and end-to-end trace
-  delivery is verified by smoke test.
+- In the delivered #37 baseline, the app and nonessential collector start
+  independently, with no ECS container dependency. The app's `/health` check
+  remains the service health boundary; collector health is visible separately
+  and end-to-end trace delivery is verified by smoke test.
 - The app and collector `awslogs` drivers use separate CloudWatch log groups.
 - `ApplicationLoadBalancedFargateService` can create the ALB, listener, target
   group, security groups, and Fargate service, or the plan can use lower-level
@@ -419,9 +428,9 @@ ecs-infra/adot-collector/adot-config.yaml
 ```
 
 The following collector responsibilities describe the combined #37/#38 target.
-For #37, implement only the traces pipeline in
-[`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md). Metrics receivers and
-exporters remain #38 work.
+#37 delivered the traces pipeline described in
+[`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
+Metrics receivers and exporters remain #38 work.
 
 Combined target responsibilities:
 
@@ -1047,15 +1056,15 @@ service; that contract is owned by issue #7.
 
 ## 11. Performance, Scalability, and Reliability Considerations
 
-- For #37, use the exact focused-plan starting size: 512 task CPU units and
-  1024 MiB, partitioned as app 384 CPU/640 MiB and ADOT 128 CPU/384 MiB.
-  Measure before changing it; do not use the older examples in this umbrella.
+- The delivered #37 task size is 512 task CPU units and 1024 MiB, partitioned
+  as app 384 CPU/640 MiB and ADOT 128 CPU/384 MiB. Measure before changing it;
+  do not use the older examples in this umbrella.
 - Keep batch processors enabled in the collector to reduce export overhead.
 - Use bounded metric labels. Current service metrics are mostly safe; keep ids
   out of metrics.
 - Use CloudWatch Container Insights enhanced observability for infrastructure
   metrics under #38 rather than trying to recreate ECS task metrics in
-  application code. Keep it disabled in #37.
+  application code. It remains disabled in the delivered #37 baseline.
 - Configure ECS deployment circuit breaker with rollback for failed deployments.
 - Use ALB health checks against `/health`. Keep `/ready` for platform or
   dependency-aware readiness but avoid causing dependency outages to restart all
@@ -1147,9 +1156,10 @@ small group of PRs unless the actual diff is tiny.
 
 ### Wave 3: ADOT Collector And X-Ray Traces (#37)
 
-- Source of truth:
-  [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md).
-- Change: Add the repo-owned ADOT image/config, collector sidecar, app OTLP
+- Status: delivered by PR #39.
+- Historical source:
+  [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
+- Delivered change: Add the repo-owned ADOT image/config, collector sidecar, app OTLP
   configuration, X-Ray exporter permissions/connectivity, split log groups, and
   collector debugging instructions.
 - Files/modules likely affected:
@@ -1280,8 +1290,8 @@ small group of PRs unless the actual diff is tiny.
 ### CDK Tests
 
 - Assert one ECS cluster exists.
-- Assert Container Insights remains disabled in #37 and is enabled/enhanced
-  only when #38 implements that path.
+- Assert Container Insights remains disabled in the delivered #37 baseline and
+  is enabled/enhanced only when #38 implements that path.
 - Assert the task definition includes:
   - app container;
   - ADOT collector container;
@@ -1301,8 +1311,8 @@ small group of PRs unless the actual diff is tiny.
 - Assert ALB ingress requires explicit source-CIDR restriction.
 - Assert the ECS Exec service flag, `ssmmessages` endpoint, and task-role
   message-channel permissions are controlled by `enableEcsExec`.
-- For #37, assert the task role contains only the required X-Ray writes for the
-  trace path and no metric/AMP permissions.
+- For the delivered #37 baseline, assert the task role contains only the
+  required X-Ray writes for the trace path and no metric/AMP permissions.
 - For #38, assert the later CloudWatch/AMP permissions and workspaces in that
   issue's focused plan.
 - Assert CloudWatch log retention is set.
@@ -1367,8 +1377,9 @@ npm -w ecs-infra run cdk -- deploy
    write metrics without NAT.
 6. Verify ALB health and GraphQL smoke.
 7. Verify ADOT sidecar logs and no crash loops.
-8. Verify X-Ray traces for #37.
-9. Destroy the #37 stack after the trace smoke check.
+8. Verify the delivered #37 X-Ray trace path still works after any #38 collector
+   changes.
+9. Destroy the stack after each trace or metric smoke check.
 10. Add and verify CloudWatch metrics under #38.
 11. Verify AMP ingestion and AMG data source access under #38.
 12. Enable failure injection in the demo stack only when the in-memory worker is
@@ -1416,7 +1427,7 @@ Rollback:
 | Pure randomness makes tests flaky                      | Medium |                           Medium | Use stable hash-based decisions and fake policies in tests.                                                                                                                      |
 | Retries reduce final failure rate below 40%            | Medium | High with per-attempt randomness | Make failure injection terminal per request or set demo retry budget deliberately.                                                                                               |
 | Public demo ALB is left running                        | Medium |                           Medium | Add cost/security cleanup docs, stack tags, and `cdk destroy` runbook.                                                                                                           |
-| Database work leaks into the observability slices      | Medium |                           Medium | Keep #37/#38 in-memory; add RDS and the deployment-time migration `RunTask` together under #7.                                                                                   |
+| Database work leaks into the observability slices      | Medium |                           Medium | Preserve the delivered #37 in-memory baseline, keep #38 in-memory, and add RDS plus the deployment-time migration `RunTask` together under #7.                                   |
 | Phase 2 ALB is directly reachable despite CloudFront   | Medium |                           Medium | Use CloudFront managed prefix list plus CloudFront origin verification header; defer WAF only for cost reasons.                                                                  |
 | RDS is deferred but later needed for realistic demo    | Medium |                           Medium | Keep RDS/migration as a clearly scoped follow-up with its own rollback path.                                                                                                     |
 
@@ -1483,8 +1494,8 @@ Rollback:
 This umbrella document no longer has one executable handoff because its work is
 split across issues with different acceptance boundaries.
 
-- For issue #37, use the handoff in
-  [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md).
+- For issue #37 history, read
+  [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
 - Before issue #38 implementation, create a focused CloudWatch/AMP/AMG plan and
   handoff from the still-relevant design material in this document.
 - Do not ask an implementation agent to deliver #37, #38, frontend hosting, CI

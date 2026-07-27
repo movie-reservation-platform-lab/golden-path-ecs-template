@@ -1,5 +1,7 @@
 # Implementation Plan: D5 In-Process Processor Contract
 
+> Status: delivered by issue #2 / PR #16. Preserved as implementation history.
+
 ## 1. Summary
 
 Add a production-shaped, in-process reservation request processor that claims one pending request, processes it deterministically, and records an internal processing attempt. The processor contract should expose only `processNextPendingRequest()` so tests exercise the same method a future worker loop would call.

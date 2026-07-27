@@ -1,6 +1,6 @@
 # Platform Follow-up Tasks
 
-Last reviewed: 2026-07-23
+Last reviewed: 2026-07-27
 
 This file tracks platform, CI/CD, infrastructure workflow, and delivery-system follow-ups that are intentionally outside the current implementation slice.
 
@@ -8,8 +8,8 @@ Use `docs/plans/service-follow-up-tasks.md` for service/domain/API leftovers. Us
 
 ## Telemetry Platform Debt
 
-The current ECS trace path intentionally puts one ADOT collector sidecar in each
-application task. That is acceptable for issue #37 because it proves one
+The delivered ECS trace path intentionally puts one ADOT collector sidecar in
+each application task. That was acceptable for issue #37 because it proved one
 private OTLP-to-X-Ray path with small blast radius, but it is not the long-term
 microservice topology. Copying that shape into every service would multiply
 collector CPU/memory, duplicate config, keep AWS X-Ray permissions on every app
@@ -59,6 +59,15 @@ owns the next concrete CI strategy wave: frontend/browser verification,
 Docker/Postgres e2e execution, and scalable workspace selection. The remaining
 items below are design inputs, not separately committed deliverables.
 
+- Review the repository testing strategy under issue
+  [#40](https://github.com/patex1987/golden-path-ecs-template/issues/40).
+  This should cover service tests, infra CDK assertions, shell validation,
+  deployed smoke tests, and CI placement. The goal is to remove or simplify
+  brittle over-specified tests, keep high-signal contract coverage, and decide
+  which smoke tests should become deployment gates versus local/manual checks.
+  Do this after the current observability and architecture direction settles
+  enough for the review to be worth the effort; do not block current feature
+  progress on perfecting the whole test suite.
 - Define a dependency audit policy before making audit checks blocking. Decide severity thresholds, dev-dependency handling, exception workflow, and whether to use `npm audit`, GitHub Dependabot alerts, dependency review, or a combination.
 - Revisit GitHub Actions supply-chain hardening. CI-1 pins official actions by major version; future work may require exact SHA pins, allowlisted actions, internal mirrored actions, Dependabot updates for action versions, or policy-as-code checks.
 - Investigate CI caching strategy deeply before adding custom caches. Cover npm cache boundaries, monorepo cache boundaries, Docker layer caching, build artifacts, remote caches, cache poisoning risks, and invalidation policy.
@@ -93,6 +102,6 @@ items below are design inputs, not separately committed deliverables.
 - Keep CDK synth credential-free in pull-request CI where practical. If future CDK context lookups require AWS credentials, isolate that behavior in a separate deployment-oriented plan.
 - Continue laptop-driven `cdk diff`, `deploy`, smoke, and `destroy` while the AWS
   learning stack is being proved. Do not make private deployment automation a
-  prerequisite for issues #37 or #38.
+  prerequisite for issue #38.
 - Design the private AWS deployment promotion workflow described in [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow). The public repository should remain credential-free; a private workflow should accept or approve an exact public commit SHA, re-run validation, pause behind a protected deployment environment, assume AWS roles through OIDC, and let CDK publish Docker image assets to the target account during deploy.
 - Replace the temporary public-CI `allowedIngressCidr=203.0.113.10/32` synth convention when the private promotion workflow owns environment-specific CDK configuration. Do not solve this by adding AWS credentials, account identifiers, deploy-role access, or real environment values to the public workflow.

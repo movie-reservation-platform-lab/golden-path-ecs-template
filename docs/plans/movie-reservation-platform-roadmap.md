@@ -1,6 +1,6 @@
 # Movie Reservation Platform Roadmap
 
-Last reviewed: 2026-07-17
+Last reviewed: 2026-07-26
 
 ## Purpose
 
@@ -42,6 +42,7 @@ workspaces. AWS deployment automation is deliberately deferred.
 | D7 local observability                     | #4                  | JSON logs, OTel traces/metrics, collector, and local Grafana workflow added              |
 | D8a frontend baseline                      | #23                 | React/Vite workspace and stabilized booking workflow adopted                             |
 | ECS backend CDK skeleton                   | #6 / PR #36         | Fargate, ALB, image asset, logging, endpoints, tests, and local deployment runbook added |
+| AWS ADOT/X-Ray trace path                  | #37 / PR #39        | Repo-owned ADOT sidecar, private X-Ray path, smoke tooling, and runbook added            |
 
 The corresponding detailed records live in
 [`delivered/`](delivered/).
@@ -59,29 +60,36 @@ Kubernetes work begins.
 
 Issue: [#37](https://github.com/patex1987/golden-path-ecs-template/issues/37)
 
-Add a repo-owned ADOT collector image and sidecar to the existing in-memory ECS
-service. Enable the app's existing OTLP exporter and send traces through ADOT to
-X-Ray. Keep laptop-driven CDK deploy and destroy as the operational path.
+Status: delivered by PR #39.
 
-Use [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md) as the focused
-implementation plan and source of truth for this branch.
+The ECS stack now includes a repo-owned ADOT collector image and nonessential
+sidecar. The in-memory NestJS service sends OTLP/HTTP traces through ADOT to
+X-Ray over the private AWS path. Laptop-driven CDK deploy, smoke, diagnostics,
+and destroy remain the operational workflow.
 
-This is the current implementation task and should not introduce a database.
+The historical implementation plan lives in
+[`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
 
 #### A2. Managed Metrics And Grafana
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
-After the trace path works, export bounded application and ECS metrics to
+#38 is the current AWS managed-observability slice. Extend the delivered
+ADOT/X-Ray baseline with bounded application and ECS metrics, export them to
 CloudWatch and Amazon Managed Service for Prometheus, then connect Amazon
 Managed Grafana and build the first useful dashboard.
+
+The focused three-PR implementation plan is
+[`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
+The first slice, now in progress, proves CloudWatch metrics from the existing
+in-memory service. The second adds AMP remote write and ECS metrics, and the
+third adds Managed Grafana and the initial dashboard.
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).
 
-The dependency inside this workstream is strict: prove ADOT-to-X-Ray traces in
-#37 before adding the CloudWatch, AMP, and Amazon Managed Grafana metric path in
-#38. Keep the ECS service in-memory throughout both issues.
+The dependency inside this workstream is now satisfied: ADOT-to-X-Ray traces
+landed in #37. Keep the ECS service in-memory throughout #38.
 
 ### Workstream B: Adopt The Distributed Observability Demo
 
@@ -96,7 +104,7 @@ greenfield implementation and not a blind branch merge. The detailed inventory,
 parallel work packages, and acceptance criteria are in
 [`distributed-observability-demo-platform.md`](distributed-observability-demo-platform.md).
 
-The adoption packages can run in parallel with #37 and #38:
+The adoption packages can run in parallel with #38:
 
 - audit and transplant the reservation MCP and GraphQL read-model changes onto
   current `main`;
@@ -138,8 +146,8 @@ anything that appears missing.
 
 Before starting RDS or Kubernetes work:
 
-- #37 and #38 have proved the intended AWS trace and metric paths, or an
-  explicit decision has rescheduled the unfinished AWS work;
+- #38 has proved the intended AWS metric path, or an explicit decision has
+  rescheduled the unfinished metrics work;
 - the multi-service demo changes have been rebased or selectively transplanted
   onto the current repositories and reviewed;
 - the normal customer UI and explicit local demo UI have distinct boundaries;
@@ -204,8 +212,9 @@ signal conventions.
 - Continue laptop-driven CDK deployment until the private promotion workflow is
   implemented deliberately.
 - Keep the AWS stack disposable and run `cdk destroy` after experiments.
-- Add one managed telemetry path at a time: X-Ray first, then metrics/AMP/AMG.
-- Keep the ECS service in-memory while implementing #37 and #38.
+- Add one managed telemetry path at a time: X-Ray is now delivered; metrics,
+  AMP, and AMG are next.
+- Keep the ECS service in-memory while implementing #38.
 - Allow independent repository and AWS workstreams to proceed in parallel, but
   require explicit contract and integration gates before they converge.
 - Adopt the existing multi-service branches before starting RDS or Kubernetes;
