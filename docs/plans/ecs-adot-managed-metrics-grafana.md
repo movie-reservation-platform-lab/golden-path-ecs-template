@@ -1,10 +1,10 @@
 # Implementation Plan: Issue #38 ECS Managed Metrics And Grafana
 
-Status: in progress (PR 1 of 3)
+Status: in progress (PR 2 of 3; PR 1 delivered by PR #41)
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
-Last reviewed: 2026-07-26
+Last reviewed: 2026-07-27
 
 ## 1. Summary
 
@@ -37,12 +37,13 @@ Amazon Managed Grafana
 The work is intentionally split into three sequential pull requests against
 `main`:
 
-1. CloudWatch application metrics.
-2. AMP plus ECS task/container metrics.
+1. CloudWatch application metrics — delivered by PR
+   [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41).
+2. AMP plus ECS task/container metrics — current slice.
 3. Amazon Managed Grafana, the dashboard, and the complete runbook.
 
-Each pull request must remain independently deployable and reviewable. The first
-two pull requests reference #38; the third closes it.
+Each pull request must remain independently deployable and reviewable. PR #41
+referenced #38; PR 2 should also reference #38; the third closes it.
 
 The implementation stays in the existing disposable `GoldenPathDemoStack` in
 `eu-central-1`. It does not change domain or application-layer code, add metric
@@ -119,26 +120,29 @@ provider.
   private Fargate task.
 - The task has an essential application container at 384 CPU units and 640 MiB
   plus a restartable, nonessential ADOT sidecar at 128 CPU units and 384 MiB.
-- The application sends OTLP/HTTP traces to `127.0.0.1:4318`; no collector port
-  is exposed through a security group or task port mapping.
+- The application sends OTLP/HTTP traces and metrics to `127.0.0.1:4318`; no
+  collector port is exposed through a security group or task port mapping.
 - The task uses S3, ECR API, ECR Docker, CloudWatch Logs, and X-Ray VPC
   endpoints. SSM Messages is optional for ECS Exec.
 - The ECS cluster explicitly has Container Insights disabled.
 - `ecs-infra/lib/config/platform-config.ts` validates untrusted CDK context once
   and passes a typed `PlatformConfig` into the stack.
-- App and ADOT log groups have one-week retention and `DESTROY` removal
-  policies.
-- The task role currently grants only the X-Ray write actions, plus ECS Exec
-  actions when that feature is enabled.
+- App, ADOT, and application-metrics EMF log groups have one-week retention and
+  `DESTROY` removal policies.
+- The task role grants X-Ray write actions and scoped CloudWatch Logs write
+  access for the EMF metrics log group, plus ECS Exec actions when that feature
+  is enabled.
 
 ### Collector And Application Metrics
 
-- `ecs-infra/adot-collector/adot-config.yaml` currently has only an OTLP trace
-  receiver and X-Ray exporter.
+- `ecs-infra/adot-collector/adot-config.yaml` currently has the delivered X-Ray
+  trace pipeline and the delivered `awsemf/application` CloudWatch metrics
+  pipeline.
 - The pinned ADOT image is validated by
   `ecs-infra/scripts/validate-adot-image.sh`; validation starts the real image
   and waits for its health extension.
-- The ECS application currently sets `OTEL_METRICS_EXPORTER=none`.
+- The ECS application currently sets `OTEL_METRICS_EXPORTER=otlp` and exports
+  metrics every 30 seconds by default.
 - `movie-reservation-service/src/infrastructure/observability/instrumentation.ts`
   already delegates exporter selection and export cadence to standard
   OpenTelemetry environment variables.
@@ -156,9 +160,10 @@ provider.
 - Existing labels are bounded HTTP method/route/status-family, GraphQL business
   operation/type/outcome, reservation outcome/reason, and classified exception
   type. Request, trace, user, and reservation IDs are not metric labels.
-- The existing worker and stable-random unexpected-error policy are already
-  implemented and tested. #38 only enables them through ECS environment
-  variables.
+- The existing worker and stable-random unexpected-error policy are implemented,
+  tested, and enabled through ECS environment variables for the AWS demo.
+- AMP, ADOT-collected ECS task/container metrics, enhanced Container Insights,
+  and Amazon Managed Grafana are not delivered yet.
 
 ### Verification And Documentation
 
@@ -166,6 +171,9 @@ provider.
   CloudFormation.
 - `ecs-infra/scripts/xray-smoke.sh` is the established laptop-driven AWS smoke
   pattern and has credential-free self-tests.
+- `ecs-infra/scripts/managed-metrics-smoke.sh` is the delivered
+  CloudWatch-application-metrics smoke pattern and has credential-free
+  self-tests.
 - `ecs-infra/package.json` combines TypeScript build, Jest, ADOT image
   validation, smoke self-tests, and CDK synth in `npm run ci`.
 - `docs/operations/aws-cdk-local-deployment.md` owns the laptop deployment and
@@ -675,7 +683,7 @@ the value. `ecs-infra/bin/infra.ts` reads the matching CDK context key.
 
 ### ECS Environment
 
-The application changes from:
+PR #41 changed the application environment from:
 
 ```text
 OTEL_METRICS_EXPORTER=none
@@ -794,13 +802,16 @@ Telemetry persistence changes are external:
 
 ## 12. Implementation Steps
 
-### PR 1: CloudWatch Application Metrics
+### PR 1: CloudWatch Application Metrics — Delivered By PR #41
 
-Suggested branch: keep the existing
-`issue-38_infra_managed-metrics-grafana` branch and placeholder PR for this
-package.
+Delivered branch: `issue-38_infra_managed-metrics-grafana`.
 
 PR issue link: `Refs #38`
+
+This section is retained as the historical implementation record for the first
+#38 slice. See PR
+[#41](https://github.com/patex1987/golden-path-ecs-template/pull/41). New work
+should start at PR 2.
 
 1. Add typed metric cadence configuration.
    - Change: add/default/validate `metricsExportIntervalSeconds` and pass it from
@@ -1109,7 +1120,8 @@ logic unexpectedly; such a change requires plan review first.
 
 ### Pull Request Sequence
 
-1. Convert the existing placeholder PR into PR 1 and merge it to `main`.
+1. PR 1 was merged to `main` as PR
+   [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41).
 2. Create PR 2's branch from the updated `main`; do not stack it on the PR 1
    branch.
 3. Create PR 3's branch from the updated `main`; do not stack it on the PR 2
@@ -1119,7 +1131,7 @@ logic unexpectedly; such a change requires plan review first.
 
 ### Deployment Sequence
 
-- Deploy PR 1 and prove CloudWatch before introducing AMP.
+- PR 1 has delivered and proved the CloudWatch application-metrics path.
 - Deploy PR 2 and prove both metric paths before introducing Grafana.
 - Complete Identity Center prerequisite before deploying PR 3.
 - Deploy PR 3, assign the user, configure data sources, import the dashboard,
@@ -1181,7 +1193,7 @@ After `cdk destroy`:
 
 ## 16. Done Criteria
 
-- [ ] PR 1 is merged independently and proves application metrics in
+- [x] PR 1 is merged independently and proves application metrics in
   CloudWatch.
 - [ ] PR 2 is merged independently and proves application plus ECS metrics in
   AMP and enhanced ECS metrics in CloudWatch.
@@ -1240,9 +1252,11 @@ docs/plans/ecs-adot-managed-metrics-grafana.md.
 
 Important sequencing:
 - Implement only one PR package in this branch.
-- PR 1 uses the existing issue-38_infra_managed-metrics-grafana branch.
-- PR 2 and PR 3 must each start from updated main after the previous PR merges.
-- PR 1 and PR 2 use "Refs #38"; PR 3 uses "Closes #38".
+- PR 1 used the existing issue-38_infra_managed-metrics-grafana branch and was
+  delivered by PR #41.
+- PR 2 uses issue-38_infra_amp-ecs-metrics from updated main.
+- PR 3 must start from updated main after PR 2 merges.
+- PR 2 uses "Refs #38"; PR 3 uses "Closes #38".
 
 Constraints:
 - Stay within the selected PR package and the confirmed design.

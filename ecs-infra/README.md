@@ -27,11 +27,11 @@ slice:
 The stack runs the app with `COMPOSITION_PROFILE=local-fixed-user` and in-memory
 persistence. The AWS demo enables the fake in-process worker and deterministic
 failure injection so smoke traffic creates useful metric outcomes. Issue #37's
-trace path and issue #38 PR 1's CloudWatch application-metric path are included.
-Later issue #38 PRs own AMP, ECS metrics, enhanced Container Insights, and
-Amazon Managed Grafana. Database work is separate: issue #7 owns RDS and a
-deployment-time ECS migration `RunTask`. A Postgres sidecar is not planned for
-this stack.
+trace path and issue #38 PR #41's CloudWatch application-metric path are
+included. The next issue #38 slice owns AMP, ECS metrics, and enhanced Container
+Insights; the final slice owns Amazon Managed Grafana. Database work is
+separate: issue #7 owns RDS and a deployment-time ECS migration `RunTask`. A
+Postgres sidecar is not planned for this stack.
 
 ## Useful commands
 

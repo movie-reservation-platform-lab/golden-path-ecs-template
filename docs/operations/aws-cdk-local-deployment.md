@@ -327,13 +327,14 @@ npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
 
-For the initial deployment, expect an entirely new stack. For the PR 1 update,
-expect the application-metrics log group, task-definition environment changes,
-the namespace output, and task-role log-stream writes. Stop if the diff targets
-the wrong account/Region, opens ingress beyond the `/32`, adds NAT, adds
-AMP/Grafana resources, removes an unexpected resource, grants X-Ray actions
-beyond `PutTraceSegments` and `PutTelemetryRecords`, or grants CloudWatch
-permissions beyond the named EMF log group.
+For the initial deployment, expect an entirely new stack. For the delivered PR
+#41 CloudWatch application-metrics update, the expected diff was the
+application-metrics log group, task-definition environment changes, namespace
+output, and task-role log-stream writes. Stop if the diff targets the wrong
+account/Region, opens ingress beyond the `/32`, adds NAT, adds AMP/Grafana
+resources before the current #38 slice, removes an unexpected resource, grants
+X-Ray actions beyond `PutTraceSegments` and `PutTelemetryRecords`, or grants
+CloudWatch permissions beyond the named EMF log group.
 
 ## Deploy
 
@@ -528,9 +529,9 @@ MANAGED_METRICS_SMOKE_SETTLE_SECONDS=90 \
   npm -w ecs-infra run smoke:managed-metrics -- --stack GoldenPathDemoStack
 ```
 
-PR 1 proves only the CloudWatch application path. AMP, ADOT-collected ECS
-metrics, enhanced Container Insights, and Managed Grafana arrive in the next
-two sequential PRs for issue #38.
+The delivered first #38 slice proves only the CloudWatch application path. AMP,
+ADOT-collected ECS metrics, and enhanced Container Insights arrive in the next
+sequential PR; Managed Grafana arrives in the final #38 PR.
 
 ## Redeploy after a change
 

@@ -1,6 +1,6 @@
 # Movie Reservation Platform Roadmap
 
-Last reviewed: 2026-07-26
+Last reviewed: 2026-07-27
 
 ## Purpose
 
@@ -81,9 +81,12 @@ Managed Grafana and build the first useful dashboard.
 
 The focused three-PR implementation plan is
 [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
-The first slice, now in progress, proves CloudWatch metrics from the existing
-in-memory service. The second adds AMP remote write and ECS metrics, and the
-third adds Managed Grafana and the initial dashboard.
+The first slice is delivered by PR
+[#41](https://github.com/patex1987/golden-path-ecs-template/pull/41): the
+existing in-memory service exports curated OTel application metrics to
+CloudWatch through ADOT's `awsemf` exporter. The current second slice adds AMP
+remote write and ECS metrics, and the third adds Managed Grafana and the initial
+dashboard.
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).

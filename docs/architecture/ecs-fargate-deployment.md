@@ -254,8 +254,9 @@ flowchart TB
   instruments under
   `GoldenPath/aws-demo/movie-reservation-service`. `ServiceName`,
   `Environment`, and metric-specific bounded attributes form the only
-  CloudWatch dimensions. AMP, ECS task/container metrics, enhanced Container
-  Insights, and Grafana remain outside this first issue #38 pull request.
+  CloudWatch dimensions. AMP, ECS task/container metrics, and enhanced
+  Container Insights remain the next issue #38 slice; Grafana remains the final
+  issue #38 slice.
 - **Trace privacy:** the X-Ray exporter keeps `index_all_attributes: false` and
   configures no indexed attributes. The current `enduser.id` span attribute is
   nevertheless stable/linkable and maps to X-Ray's dedicated `user` field; the

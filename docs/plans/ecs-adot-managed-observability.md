@@ -1183,6 +1183,11 @@ small group of PRs unless the actual diff is tiny.
 
 ### Wave 4: CloudWatch, AMP, And Managed Grafana Metrics (#38)
 
+- Status: in progress through
+  [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
+  PR #41 delivered the CloudWatch application-metrics path; the current slice
+  owns AMP remote write, ADOT-collected ECS task/container metrics, and enhanced
+  Container Insights.
 - Change: Extend the proven ADOT collector with CloudWatch metric export, AMP
   workspace/remote write, ECS task metrics, and an AMG workspace or documented
   minimal manual identity/data-source setup.
@@ -1496,7 +1501,8 @@ split across issues with different acceptance boundaries.
 
 - For issue #37 history, read
   [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
-- Before issue #38 implementation, create a focused CloudWatch/AMP/AMG plan and
-  handoff from the still-relevant design material in this document.
+- For issue #38, use the focused
+  [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md)
+  plan and implement only the next sequential PR package.
 - Do not ask an implementation agent to deliver #37, #38, frontend hosting, CI
   telemetry, and failure-injection work from one branch.
