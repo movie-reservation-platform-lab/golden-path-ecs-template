@@ -61,30 +61,42 @@ flowchart TB
 
     ecr["Amazon ECR<br/>app + ADOT CDK assets"]
     s3["Amazon S3<br/>ECR image layers"]
-    logs["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics"]
+    cloudwatch["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics"]
     xray["AWS X-Ray<br/>trace segments"]
     amp["Amazon Managed Service for Prometheus<br/>application + curated ECS metrics<br/>7-day retention"]
+    grafana["Amazon Managed Grafana<br/>15-panel metrics dashboard"]
+    identityCenter["IAM Identity Center<br/>built-in directory + assigned Admin"]
+    grafanaPrefixList["Managed prefix list<br/>allowedIngressCidr only"]
     sts["AWS STS<br/>regional identity endpoint"]
     ssm["SSM Messages<br/>optional ECS Exec"]
 
     service -->|"maintains one task"| task
     interfaceEndpoints --> ecr
-    interfaceEndpoints --> logs
+    interfaceEndpoints --> cloudwatch
     interfaceEndpoints --> xray
     interfaceEndpoints --> amp
     interfaceEndpoints --> sts
     interfaceEndpoints -.->|"when ECS Exec is enabled"| ssm
     s3Endpoint --> s3
+    identityCenter -->|"human authentication"| grafana
+    grafana -->|"PromQL metric reads"| amp
+    grafana -->|"metric reads only"| cloudwatch
+    grafanaPrefixList -.->|"restricts inbound access"| grafana
   end
+
+  trustedLaptop["Trusted developer laptop<br/>current allowed public IPv4 /32"]
+  trustedLaptop -->|"HTTPS + Identity Center"| grafana
 
   classDef network fill:#eaf4ff,stroke:#2563eb,color:#111827
   classDef compute fill:#edf7ed,stroke:#238636,color:#111827
   classDef awsService fill:#fff4e5,stroke:#c2410c,color:#111827
+  classDef security fill:#fff1f2,stroke:#be123c,color:#111827
   classDef optional fill:#f5f5f5,stroke:#6b7280,color:#111827,stroke-dasharray: 5 5
 
-  class igw,alb,interfaceEndpoints,s3Endpoint network
+  class igw,alb,interfaceEndpoints,s3Endpoint,grafanaPrefixList network
   class cluster,service,task,app,adot compute
-  class ecr,s3,logs,xray,amp,sts awsService
+  class ecr,s3,cloudwatch,xray,amp,grafana,identityCenter,sts awsService
+  class trustedLaptop security
   class ssm optional
 ```
 
@@ -110,8 +122,22 @@ flowchart TB
       cloudwatch["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics<br/>7-day log retention"]
       xray["AWS X-Ray<br/>trace segments"]
       amp["AMP workspace<br/>application + curated ECS metrics<br/>7-day retention"]
+      grafana["Managed Grafana workspace<br/>Identity Center authentication<br/>customer-managed permissions"]
+      identityCenter["IAM Identity Center<br/>built-in directory<br/>assigned Admin user"]
       sts["Regional AWS STS<br/>collector identity calls"]
       ssm["SSM Messages<br/>ECS Exec channels"]
+    end
+
+    subgraph grafanaResources["Managed Grafana access resources"]
+      direction LR
+      grafanaRole["Customer-managed IAM role<br/>AMP workspace queries<br/>CloudWatch metric reads only"]
+      grafanaPrefixList["IPv4 managed prefix list<br/>one allowedIngressCidr entry"]
+      dashboardArtifact["Repository dashboard JSON<br/>15 panels<br/>manual import"]
+
+      grafanaRole -.->|"assumed by"| grafana
+      grafanaPrefixList -.->|"network access control"| grafana
+      dashboardArtifact -.->|"manual import"| grafana
+      identityCenter -->|"authenticates assigned user"| grafana
     end
 
     subgraph ecsResources["Amazon ECS / Fargate resources"]
@@ -212,7 +238,12 @@ flowchart TB
     taskRole -. "permits two write actions" .-> xray
     taskRole -. "permits stream + event writes<br/>to named EMF log group" .-> cloudwatch
     taskRole -. "permits remote write<br/>to one workspace" .-> amp
+    grafanaRole -. "permits read queries<br/>to one workspace" .-> amp
+    grafanaRole -. "permits metric query/list only" .-> cloudwatch
   end
+
+  trustedLaptop["Trusted developer laptop<br/>current allowed public IPv4 /32"]
+  trustedLaptop -->|"HTTPS + Identity Center"| grafana
 
   classDef network fill:#eaf4ff,stroke:#2563eb,color:#111827
   classDef compute fill:#edf7ed,stroke:#238636,color:#111827
@@ -220,10 +251,10 @@ flowchart TB
   classDef security fill:#fff1f2,stroke:#be123c,color:#111827
   classDef optional fill:#f5f5f5,stroke:#6b7280,color:#111827,stroke-dasharray: 5 5
 
-  class igw,publicRoute,alb,listener,targetGroup,isolatedRoute,ecrApiEndpoint,ecrDockerEndpoint,logsEndpoint,xrayEndpoint,ampEndpoint,stsEndpoint,s3Endpoint network
+  class igw,publicRoute,alb,listener,targetGroup,isolatedRoute,ecrApiEndpoint,ecrDockerEndpoint,logsEndpoint,xrayEndpoint,ampEndpoint,stsEndpoint,s3Endpoint,grafanaPrefixList network
   class cluster,service,taskDefinition,executionRole,taskRole,task compute
-  class ecr,s3,cloudwatch,xray,amp,sts,ssm awsService
-  class albSg,serviceSg,endpointSg security
+  class ecr,s3,cloudwatch,xray,amp,grafana,identityCenter,sts,ssm awsService
+  class albSg,serviceSg,endpointSg,grafanaRole,trustedLaptop security
   class ssmEndpoint optional
 ```
 
@@ -235,6 +266,11 @@ flowchart TB
   ingress value. The public route table's `0.0.0.0/0 -> Internet Gateway` route
   is different: it makes the public subnet internet-routable, but it does not
   itself authorize inbound connections through the ALB security group.
+- **Grafana human access:** Managed Grafana is a regional managed service, not
+  a workload inside this VPC. Its network access control references a
+  stack-owned managed prefix list containing the same `allowedIngressCidr`.
+  IAM Identity Center authenticates the human and the Grafana workspace
+  assignment authorizes that user; both checks remain required.
 - **Private compute:** the Fargate task receives an ENI in the isolated subnet,
   has no public IP, and accepts port 3000 only from the ALB security group.
 - **Availability Zone split:** the VPC and internet-facing ALB span two
@@ -281,8 +317,16 @@ flowchart TB
   container name, and Region while deleting task/container identities, image
   identity, timestamps, and other churn before resource-to-label conversion.
   Enhanced Container Insights independently supplies the AWS-native
-  task/container view in CloudWatch. Managed Grafana remains the final issue
-  #38 slice.
+  task/container view in CloudWatch.
+- **Grafana data access:** the Grafana service assumes a customer-managed IAM
+  role whose trust is limited by the current account and same-account Grafana
+  workspace ARN pattern. That role can query the one AMP workspace and use only
+  CloudWatch metric discovery/query plus Region discovery. It has no Logs,
+  X-Ray, alarm, notification, or write permissions.
+- **Dashboard ownership:** CDK creates the AWS workspace, role, prefix list, and
+  outputs. The repository owns the 15-panel JSON artifact. Identity Center user
+  assignment, data-source configuration, and dashboard import remain manual,
+  so no API token or second infrastructure state owner is introduced.
 - **Trace privacy:** the X-Ray exporter keeps `index_all_attributes: false` and
   configures no indexed attributes. The current `enduser.id` span attribute is
   nevertheless stable/linkable and maps to X-Ray's dedicated `user` field; the

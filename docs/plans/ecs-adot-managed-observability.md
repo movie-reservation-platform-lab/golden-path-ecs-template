@@ -8,7 +8,7 @@
 > [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
 > Use the still-relevant sections below only as background.
 
-Status update, 2026-07-27:
+Status update, 2026-07-28:
 
 - Wave 1 failure injection and Wave 2 ECS backend skeleton are delivered.
 - The Wave 2 stack was deployed successfully from a laptop and destroyed.
@@ -16,9 +16,9 @@ Status update, 2026-07-27:
   is delivered by PR #39: ADOT collector sidecar and X-Ray traces are now part
   of the ECS baseline.
 - [Issue #38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
-  is in progress. PR #41 delivered CloudWatch application metrics. The second
-  slice's AMP/ECS-metrics implementation is complete locally, with deployed
-  acceptance and merge pending; the final slice adds Amazon Managed Grafana.
+  is in progress. PR #41 delivered CloudWatch application metrics and PR #42
+  delivered AMP/ECS metrics plus enhanced Container Insights. The final slice
+  adds Amazon Managed Grafana, its initial dashboard, and final lifecycle docs.
 - The AWS observability slices use the existing in-memory service. A Postgres
   sidecar is no longer part of this plan. RDS and deployment-time migrations via
   a separate ECS `RunTask` remain under issue #7.
@@ -41,11 +41,12 @@ Also add demo-only reservation failure injection so roughly 40% of reservation
 requests fail as a production-looking `unexpected-error`. The goal is an
 on-call style investigation scenario, not a clearly labelled demo fault.
 
-Current next gate: deploy the focused #38 second slice from the laptop, prove
-CloudWatch/AMP dual routing plus both ECS metric paths, run the X-Ray regression
-smoke, and destroy the stack. Managed Grafana follows only after that PR merges.
-Keep RDS, production OIDC, full CI/CD deployment automation, and the
-multi-service agent/MCP infrastructure as later slices.
+Current next gate: complete the final #38 credential-free checks, then enable
+or verify Identity Center, deploy from the laptop, configure the two Grafana
+data sources, import and review the dashboard, rerun the managed-metrics and
+X-Ray smokes, and destroy the stack. Keep RDS, production OIDC, full CI/CD
+deployment automation, and the multi-service agent/MCP infrastructure as later
+slices.
 
 Recommended follow-up slice: add CI observability for GitHub Actions with a
 separate `workflow_run` telemetry workflow. Emit low-cardinality CloudWatch
@@ -1186,9 +1187,10 @@ small group of PRs unless the actual diff is tiny.
 
 - Status: in progress through
   [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
-  PR #41 delivered the CloudWatch application-metrics path; the current slice
-  owns AMP remote write, ADOT-collected ECS task/container metrics, and enhanced
-  Container Insights.
+  PR #41 delivered the CloudWatch application-metrics path and PR #42 delivered
+  AMP remote write, ADOT-collected ECS task/container metrics, and enhanced
+  Container Insights. The current final slice owns Managed Grafana, its first
+  dashboard, and final operations documentation.
 - Change: Extend the proven ADOT collector with CloudWatch metric export, AMP
   workspace/remote write, ECS task metrics, and an AMG workspace or documented
   minimal manual identity/data-source setup.

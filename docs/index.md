@@ -58,7 +58,9 @@ Active documents:
 
 Delivered implementation records:
 
-- [delivered/README.md](plans/delivered/README.md) - index of archived implementation plans, including the delivered #37 ADOT/X-Ray tracing plan.
+- [delivered/README.md](plans/delivered/README.md) - index of archived
+  implementation plans, including the delivered #37 ADOT/X-Ray tracing plan and
+  the hybrid teaching mode skill.
 
 ## `learning/`
 

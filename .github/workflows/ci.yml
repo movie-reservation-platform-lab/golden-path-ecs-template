@@ -146,6 +146,12 @@ jobs:
       - name: Validate X-Ray smoke tooling
         run: npm -w ecs-infra run validate:xray-smoke
 
+      - name: Validate managed-metrics smoke tooling
+        run: npm -w ecs-infra run validate:managed-metrics-smoke
+
+      - name: Validate Managed Grafana dashboard
+        run: npm -w ecs-infra run validate:grafana-dashboard
+
       # Temporary CI-only context until ADR 015's private promotion workflow
       # owns real environment configuration and AWS deployment authority.
       - name: Synthesize CDK app

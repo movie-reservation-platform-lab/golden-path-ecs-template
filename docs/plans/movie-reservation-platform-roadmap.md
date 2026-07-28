@@ -84,10 +84,12 @@ The focused three-PR implementation plan is
 The first slice is delivered by PR
 [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41): the
 existing in-memory service exports curated OTel application metrics to
-CloudWatch through ADOT's `awsemf` exporter. The current second slice adds AMP
-remote write and ECS metrics. Its local implementation is complete; deployed
-laptop acceptance and merge remain pending. The third slice adds Managed
-Grafana and the initial dashboard.
+CloudWatch through ADOT's `awsemf` exporter. PR
+[#42](https://github.com/patex1987/golden-path-ecs-template/pull/42) delivers the
+second slice: AMP remote write, curated ECS task/container metrics, and enhanced
+Container Insights. The current third slice adds CIDR-restricted Managed
+Grafana, its customer-managed metric-read role, the initial 15-panel dashboard,
+and the final lifecycle runbook.
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).
