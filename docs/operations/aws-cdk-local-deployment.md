@@ -7,14 +7,15 @@ deployed application resources afterward.
 The current stack is a learning/demo environment, not a production deployment.
 It creates resources that incur charges while they exist, including one Fargate
 task, an Application Load Balancer, six interface VPC endpoints, CloudWatch
-Logs/custom/enhanced Container Insights metrics, and an AMP workspace.
+Logs/custom/enhanced Container Insights metrics, an AMP workspace, and an
+Amazon Managed Grafana workspace.
 
 ## Identity recommendation
 
 Do not create a dedicated IAM user or access key specifically for CDK
 bootstrapping.
 
-For a personal account with no AWS Organization, use:
+For this personal demo, use:
 
 1. The **existing personal AWS account** that was created with your email
    address and payment details.
@@ -24,6 +25,8 @@ For a personal account with no AWS Organization, use:
    no access keys.
 4. AWS CLI v2 `aws login`, which uses the IAM user's console login to give the
    laptop temporary credentials.
+5. An organization instance of IAM Identity Center with its built-in directory
+   for the one human who signs in to Managed Grafana.
 
 The IAM user is your normal human administrator, not a special CDK identity.
 CDK bootstrapping creates the deployment, asset-publishing, lookup, and
@@ -55,13 +58,10 @@ the deployed resource lifecycle.
 ### 1. Select the account and Region
 
 In this runbook, **the account** means the personal AWS account you already
-have. You do not need to create another account and you do not need to enable
-AWS Organizations.
-
-An AWS Organization is an optional wrapper for centrally managing multiple AWS
-accounts. It becomes useful when you later want separate development,
-production, security, or billing accounts. It is unnecessary for this first
-personal deployment.
+have. You do not need to create another account. The final #38 slice does,
+however, require that account to become the AWS Organizations management
+account so it can host an organization instance of IAM Identity Center for
+Managed Grafana login.
 
 Sign in to the existing account and record its 12-digit account ID from the
 account menu in the upper-right corner of the AWS console. This account ID will
@@ -124,6 +124,27 @@ In **Billing and Cost Management > Budgets**:
 
 A budget is delayed cost telemetry, not a real-time spending cap or an
 automatic substitute for `cdk destroy`.
+
+### 5. Enable Organizations and IAM Identity Center
+
+This is an account-level prerequisite, not part of
+`GoldenPathDemoStack`. Complete it before the first Managed Grafana deployment:
+
+1. In **AWS Organizations**, create an organization if the account is still
+   standalone. Keep the existing personal account as its management account.
+2. In Region `eu-central-1`, open **IAM Identity Center** and enable an
+   organization instance.
+3. Keep the built-in Identity Center directory; do not add SAML or an external
+   identity provider for this one-user demo.
+4. Create one named personal user with an actively monitored email address.
+5. Complete password enrollment and require MFA for that user.
+6. Sign in to the AWS access portal once before deploying Grafana. No Grafana
+   application appears until the workspace exists and the user is assigned.
+
+Do not use root as the Grafana user and do not put the Identity Store ID, user
+email, enrollment link, password, or MFA material in Git. AWS Organizations,
+IAM Identity Center, its directory user, and MFA enrollment persist after
+`cdk destroy`; they have a broader lifecycle than this disposable stack.
 
 ## One-time laptop setup
 
@@ -294,6 +315,7 @@ npm -w ecs-infra test -- --runInBand
 npm -w ecs-infra run validate:adot-image
 npm -w ecs-infra run validate:xray-smoke
 npm -w ecs-infra run validate:managed-metrics-smoke
+npm -w ecs-infra run validate:grafana-dashboard
 ```
 
 List and synthesize the stack:
@@ -332,15 +354,19 @@ npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
 
-For the initial deployment, expect an entirely new stack. For the current #38
-slice on top of PR #41, expect one disposable AMP workspace, `aps-workspaces`
-and regional STS interface endpoints, one Container Insights performance log
-group, the cluster's `containerInsights=enhanced` setting, a workspace-scoped
-`aps:RemoteWrite` task-role statement, new outputs, and an updated task
-definition. Stop if the diff targets the wrong account/Region, opens ingress
-beyond the `/32`, adds NAT, adds Managed Grafana or an AMP control-plane
-endpoint, removes an unexpected resource, or grants telemetry permissions
-beyond the named X-Ray/EMF/AMP resources and actions.
+For the initial deployment, expect an entirely new stack. For the final #38
+slice on top of PR #42, expect one Managed Grafana workspace, one single-entry
+IPv4 managed prefix list containing `ALLOWED_INGRESS_CIDR`, one customer-managed
+Grafana data-access role, and two Grafana outputs. The existing AMP, endpoint,
+Container Insights, task-role, and task-definition resources should otherwise
+remain stable.
+
+Stop if the diff targets the wrong account/Region, opens the prefix list beyond
+the intended `/32`, adds NAT or a Grafana VPC endpoint, configures Grafana
+service-managed data sources, adds alarms, removes an unexpected resource, or
+grants the Grafana role Logs, X-Ray, alarm, SNS, write, or wildcard-action
+permissions. The intended role can query only the stack AMP workspace,
+CloudWatch metrics, and the EC2 Region list.
 
 ## Deploy
 
@@ -390,6 +416,8 @@ GoldenPathDemoStack.AmpWorkspaceId = <workspace-id>
 GoldenPathDemoStack.CloudWatchApplicationMetricsNamespace = GoldenPath/aws-demo/movie-reservation-service
 GoldenPathDemoStack.EcsClusterName = movie-reservation-platform-aws-demo
 GoldenPathDemoStack.EcsServiceName = movie-reservation-service
+GoldenPathDemoStack.GrafanaWorkspaceId = <grafana-workspace-id>
+GoldenPathDemoStack.GrafanaWorkspaceUrl = https://<grafana-workspace-endpoint>
 GoldenPathDemoStack.LoadBalancerDnsName = <generated-alb-name>.eu-central-1.elb.amazonaws.com
 Stack ARN:
 arn:aws:cloudformation:eu-central-1:123456789012:stack/GoldenPathDemoStack/<generated-id>
@@ -424,7 +452,22 @@ export AMP_WORKSPACE_ID="$(aws cloudformation describe-stacks \
   --query "Stacks[0].Outputs[?OutputKey=='AmpWorkspaceId'].OutputValue | [0]" \
   --output text)"
 
+export GRAFANA_WORKSPACE_ID="$(aws cloudformation describe-stacks \
+  --stack-name GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='GrafanaWorkspaceId'].OutputValue | [0]" \
+  --output text)"
+
+export GRAFANA_WORKSPACE_URL="$(aws cloudformation describe-stacks \
+  --stack-name GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='GrafanaWorkspaceUrl'].OutputValue | [0]" \
+  --output text)"
+
 printf 'http://%s\n' "$ALB_DNS_NAME"
+printf '%s\n' "$GRAFANA_WORKSPACE_URL"
 curl --fail --show-error "http://${ALB_DNS_NAME}/health"
 ```
 
@@ -561,8 +604,86 @@ MANAGED_METRICS_SMOKE_SETTLE_SECONDS=90 \
 ```
 
 Run the existing X-Ray smoke separately; the two reports together are the
-current slice's laptop acceptance evidence. Managed Grafana arrives in the
-final #38 PR.
+metric-ingestion acceptance evidence.
+
+### Complete the manual Managed Grafana setup
+
+CloudFormation creates the workspace and its AWS data-access role, but it does
+not create a human assignment, data sources, or dashboard through the Grafana
+API. Keep those control planes separate for this first proof.
+
+First record the AWS-selected Grafana version and confirm the workspace is
+active:
+
+```bash
+aws grafana describe-workspace \
+  --workspace-id "$GRAFANA_WORKSPACE_ID" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query 'workspace.{Status:status,Version:grafanaVersion,Endpoint:endpoint}' \
+  --output table
+```
+
+Then use the AWS console:
+
+1. Open **Amazon Managed Grafana > All workspaces** and select the stack output
+   workspace.
+2. Under **Authentication**, assign the Identity Center user created during
+   one-time setup.
+3. Change that user's workspace role to **Admin**. Identity Center
+   authentication and Grafana workspace authorization are separate controls.
+4. Open `GRAFANA_WORKSPACE_URL`, choose the Identity Center sign-in path, and
+   complete MFA.
+
+Inside Grafana, add the two imported data sources:
+
+1. Add a **Prometheus** data source for AMP.
+   - URL: the `AmpPrometheusEndpoint` CloudFormation output.
+   - Authentication provider: the workspace/default AWS SDK credentials.
+   - Enable SigV4 authentication for service `aps`.
+   - Default Region: `eu-central-1`.
+2. Add a **CloudWatch** data source.
+   - Authentication provider: the workspace/default AWS SDK credentials.
+   - Default Region: `eu-central-1`.
+   - Do not add CloudWatch Logs or X-Ray permissions to make unrelated query
+     modes work; this role is metrics-only.
+3. Use **Save & test** for AMP and require it to pass. Save the CloudWatch data
+   source, then verify a metric query such as `RunningTaskCount` in **Explore**.
+   Grafana's CloudWatch health check also probes CloudWatch Logs and can
+   therefore report a Logs authorization error for this deliberately
+   metrics-only role. Do not add Logs permissions to turn that health check
+   green; a successful `GetMetricData` panel is the acceptance check.
+
+Import
+[`movie-reservation-aws-overview.json`](../../ecs-infra/grafana/dashboards/movie-reservation-aws-overview.json)
+and map `DS_AMP` to the AMP Prometheus data source and `DS_CLOUDWATCH` to the
+CloudWatch data source. The repository validator enforces the stable dashboard
+UID, one-hour range, 30-second refresh, five golden-signal rows, exactly 15
+data panels, and the absence of log/trace data sources.
+
+Run the managed-metrics smoke immediately before visual acceptance so the
+one-hour window contains bounded demo traffic. Review all 15 panels:
+
+- overview shows GraphQL rate, error ratio, and p95 latency;
+- traffic shows HTTP, GraphQL, and reservation workflow activity;
+- errors may show a valid zero for a bounded series, but must not show a broken
+  query or data-source error;
+- latency shows p50, p95, and p99 for all three application boundaries;
+- saturation shows AMP task CPU/memory plus CloudWatch desired/running task and
+  ALB healthy/unhealthy target state.
+
+If the account contains other ALBs, confirm the CloudWatch target-health series
+labels belong to `aws-demo-backend`; the dashboard intentionally uses wildcard
+dimension values because the ALB and target-group dimensions include
+CloudFormation-generated suffixes.
+
+Finally, prove both access-control layers:
+
+1. From the laptop whose public IPv4 is in `ALLOWED_INGRESS_CIDR`, the workspace
+   URL reaches Identity Center and the assigned user can sign in.
+2. From a client outside that CIDR, the same workspace endpoint returns
+   `403 Forbidden` before authentication. A phone on mobile data is sufficient
+   for this manual negative check; do not add its CIDR to the prefix list.
 
 ## Redeploy after a change
 
@@ -575,6 +696,7 @@ npm -w ecs-infra test -- --runInBand
 npm -w ecs-infra run validate:adot-image
 npm -w ecs-infra run validate:xray-smoke
 npm -w ecs-infra run validate:managed-metrics-smoke
+npm -w ecs-infra run validate:grafana-dashboard
 
 npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   --profile "$AWS_PROFILE" \
@@ -598,6 +720,18 @@ and verify the target:
 aws login --profile "$AWS_PROFILE"
 aws sts get-caller-identity --profile "$AWS_PROFILE"
 printf 'Destroy target: aws://%s/%s\n' "$AWS_ACCOUNT_ID" "$AWS_REGION"
+```
+
+Capture the generated Grafana role name before CloudFormation removes the
+stack:
+
+```bash
+export GRAFANA_ROLE_NAME="$(aws cloudformation list-stack-resources \
+  --stack-name GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query "StackResourceSummaries[?ResourceType=='AWS::IAM::Role' && contains(LogicalResourceId, 'GrafanaDataAccessRole')].PhysicalResourceId | [0]" \
+  --output text)"
 ```
 
 Then request stack deletion:
@@ -656,12 +790,27 @@ aws amp list-workspaces \
   --profile "$AWS_PROFILE" \
   --region "$AWS_REGION" \
   --query "workspaces[?workspaceId=='${AMP_WORKSPACE_ID}'].workspaceId"
+
+aws grafana list-workspaces \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query "workspaces[?id=='${GRAFANA_WORKSPACE_ID}'].id"
+
+aws ec2 describe-managed-prefix-lists \
+  --filters Name=prefix-list-name,Values=movie-reservation-platform-aws-demo-grafana-access \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query 'PrefixLists[].PrefixListId'
+
+aws iam list-roles \
+  --profile "$AWS_PROFILE" \
+  --query "Roles[?RoleName=='${GRAFANA_ROLE_NAME}'].RoleName"
 ```
 
 Both log-group queries should return empty lists, including the stack-owned
-`metrics` EMF and Container Insights performance groups. The AMP query must
-also return an empty list. ECS can temporarily report the deleted cluster as
-`INACTIVE`.
+`metrics` EMF and Container Insights performance groups. The AMP, Grafana,
+prefix-list, and IAM-role queries must also return empty lists. ECS can
+temporarily report the deleted cluster as `INACTIVE`.
 The successful CloudFormation stack deletion is the authoritative lifecycle
 result for stack-owned resources. X-Ray retains ingested traces for 30 days
 independently of this stack, so `cdk destroy` does not erase the smoke trace
@@ -669,6 +818,10 @@ immediately. CloudWatch custom and Container Insights metric datapoints also
 cannot be deleted explicitly: removing the task, cluster, and log groups stops
 new publication, while historical datapoints age out under CloudWatch's
 service retention.
+
+AWS Organizations, IAM Identity Center, its built-in directory user, MFA
+enrollment, and the AWS access portal remain intentionally. They were created
+outside `GoldenPathDemoStack` and must not be deleted as routine demo cleanup.
 
 If deletion fails, inspect the first failing event before manually changing any
 resource:
@@ -766,6 +919,8 @@ Region:
 - enhanced Container Insights task/container metrics;
 - AMP ingestion, storage, and query samples for the application and eight
   curated ECS metrics, with seven-day workspace retention;
+- Amazon Managed Grafana workspace usage and the assigned Admin active-user
+  license;
 - ECR and S3 storage for CDK assets;
 - normal data transfer charges.
 
@@ -773,13 +928,15 @@ The S3 gateway endpoint has no hourly endpoint charge. The stack deliberately
 uses no NAT Gateway. Setting `enableEcsExec=true` adds a seventh interface
 endpoint and therefore another hourly endpoint cost.
 
-After `cdk destroy`, the Fargate task, ALB, AMP workspace, VPC endpoints, VPC,
-and all four log groups should be gone. No emitter remains to publish new
-metric datapoints. The bootstrap asset storage remains until its lifecycle
-rules or `cdk gc` remove unused objects and images. X-Ray traces and historical
-CloudWatch metric datapoints follow their service retention instead of
-CloudFormation lifecycle. Billing data and budget notifications can lag behind
-resource deletion.
+After `cdk destroy`, the Fargate task, ALB, AMP and Grafana workspaces, Grafana
+access prefix list and role, VPC endpoints, VPC, and all four log groups should
+be gone. No emitter remains to publish new metric datapoints. The bootstrap
+asset storage remains until its lifecycle rules or `cdk gc` remove unused
+objects and images. X-Ray traces and historical CloudWatch metric datapoints
+follow their service retention instead of CloudFormation lifecycle.
+Organizations and Identity Center also remain because they are account-level
+foundations. Billing data and budget notifications can lag behind resource
+deletion.
 
 ## Common failures
 
@@ -875,6 +1032,30 @@ AMP ingestion delays. Roll back by redeploying the previous task definition or
 destroy the stack; telemetry failure must not be worked around by making ADOT
 essential.
 
+### Managed Grafana cannot be reached or has no data
+
+- A `403 Forbidden` before sign-in usually means the laptop's public IPv4 no
+  longer matches the single prefix-list CIDR. Refresh
+  `ALLOWED_INGRESS_CIDR`, review `cdk diff`, and redeploy the access update.
+- An Identity Center login with no workspace access means the user exists but
+  has not been assigned to this Grafana workspace, or has not been promoted to
+  Admin.
+- A failed AMP data-source test points to the workspace URL/Region/SigV4
+  settings or the `aps:GetLabels`, `aps:GetMetricMetadata`, `aps:GetSeries`,
+  and `aps:QueryMetrics` role statement.
+- A failed CloudWatch data-source test or empty metric picker points to the
+  Region or the metrics-only `cloudwatch:GetMetricData` and
+  `cloudwatch:ListMetrics` permissions. A failure that names only CloudWatch
+  Logs is expected from Grafana's combined metrics/logs health check; verify a
+  metric in **Explore** instead of broadening this role.
+- Imported panels with missing data sources mean the two dashboard inputs were
+  not mapped during import. Reimport the versioned JSON instead of editing its
+  UIDs in Git.
+
+Do not solve these failures by broadening the workspace endpoint, adding
+anonymous access, attaching AWS-managed administrator policies, or adding
+Grafana API credentials.
+
 ## Official references
 
 - [IAM security best practices](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
@@ -896,3 +1077,7 @@ essential.
 - [Use `awscurl` with AMP Prometheus-compatible APIs](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-compatible-APIs.html)
 - [AMP interface VPC endpoints](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-and-interface-VPC.html)
 - [Enhanced ECS Container Insights metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-enhanced-observability-metrics-ECS.html)
+- [Managed Grafana with IAM Identity Center](https://docs.aws.amazon.com/grafana/latest/userguide/authentication-in-AMG-SSO.html)
+- [Managed Grafana customer-managed permissions](https://docs.aws.amazon.com/grafana/latest/userguide/AMG-manage-permissions.html)
+- [Managed Grafana network access control](https://docs.aws.amazon.com/grafana/latest/userguide/AMG-configure-nac.html)
+- [Grafana CloudWatch data-source troubleshooting](https://grafana.com/docs/grafana/latest/datasources/aws-cloudwatch/troubleshooting/)

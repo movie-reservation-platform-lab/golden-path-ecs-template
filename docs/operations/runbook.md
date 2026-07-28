@@ -333,11 +333,35 @@ Current checks for the in-memory ECS/ADOT stack:
   optional ECS Exec actions;
 - the no-NAT path includes only the AMP workspace and regional STS data-plane
   endpoints needed by the collector;
-- no Managed Grafana, alarm, or database resources appear before their own
-  PRs/issues.
+- Managed Grafana authenticates through IAM Identity Center, allows network
+  access only through the one-entry laptop CIDR prefix list, and assumes its
+  customer-managed role for metrics-only AMP/CloudWatch reads;
+- the repository dashboard imports with exactly 15 data panels across
+  Overview, Traffic, Errors, Latency, and Saturation rows;
+- no alarm, notification, log/trace data-source, or database resources enter
+  this metrics-only slice.
 
 Use the exact AWS CLI inspection, metric/trace smoke, rollback, and teardown
 commands in [the local CDK deployment runbook](aws-cdk-local-deployment.md).
+
+For a dashboard symptom, triage in this order:
+
+1. Confirm the workspace endpoint is reachable from the current allowed CIDR
+   and the assigned Identity Center user can sign in.
+2. Run **Save & test** on the AMP and CloudWatch data sources.
+3. Run the managed-metrics smoke to separate missing ingestion from a Grafana
+   query/import problem.
+4. For application or task CPU/memory panels, inspect AMP query results and
+   then ADOT exporter logs.
+5. For desired/running tasks or ALB target health, inspect the CloudWatch query
+   Region, namespace, dimensions, and returned resource labels.
+6. For traces or detailed logs, leave Grafana and use the existing X-Ray and
+   CloudWatch Logs procedures; this dashboard deliberately has no trace or log
+   data source.
+
+A bounded error series may legitimately be zero. “No data,” a query error, an
+authentication error, or a panel mapped to the wrong imported data source is
+not a valid zero state.
 
 Future checks remain separate: issue #7 must prove the RDS migration `RunTask`,
 and issue #8 must prove independently deployable API/worker signaling.

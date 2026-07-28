@@ -1,11 +1,11 @@
 # Implementation Plan: Issue #38 ECS Managed Metrics And Grafana
 
-Status: in progress (PR 2 implemented locally; deployed acceptance and merge
-pending; PR 1 delivered by PR #41)
+Status: in progress (PR 1 delivered by PR #41; PR 2 delivered by PR #42; PR 3
+implementation in progress)
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
-Last reviewed: 2026-07-27
+Last reviewed: 2026-07-28
 
 ## 1. Summary
 
@@ -40,8 +40,10 @@ The work is intentionally split into three sequential pull requests against
 
 1. CloudWatch application metrics — delivered by PR
    [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41).
-2. AMP plus ECS task/container metrics — current slice.
-3. Amazon Managed Grafana, the dashboard, and the complete runbook.
+2. AMP plus ECS task/container metrics — delivered by PR
+   [#42](https://github.com/patex1987/golden-path-ecs-template/pull/42).
+3. Amazon Managed Grafana, the dashboard, and the complete runbook — current
+   slice.
 
 Each pull request must remain independently deployable and reviewable. PR #41
 referenced #38; PR 2 should also reference #38; the third closes it.
@@ -169,8 +171,10 @@ provider.
 - The existing worker and stable-random unexpected-error policy are implemented,
   tested, and enabled through ECS environment variables for the AWS demo.
 - AMP, ADOT-collected ECS task/container metrics, and enhanced Container
-  Insights are implemented on the PR 2 branch but are not yet proven by a
-  deployed smoke or merged. Amazon Managed Grafana remains PR 3.
+  Insights are merged on `main` through PR #42. The repository does not retain
+  account-specific deployed acceptance output.
+- PR 3 models Managed Grafana, its metric-read role and CIDR prefix list, and
+  adds the versioned 15-panel dashboard plus manual identity/import procedure.
 
 ### Verification And Documentation
 
@@ -929,7 +933,7 @@ PR 1 merge gate:
 - X-Ray smoke still passes.
 - `cdk destroy` removes the EMF log group and stops publication.
 
-### PR 2: AMP And ECS Metrics
+### PR 2: AMP And ECS Metrics — Delivered By PR #42
 
 Suggested branch:
 `issue-38_infra_amp-ecs-metrics`, created from updated `main` after PR 1 merges.
@@ -1012,7 +1016,7 @@ PR 2 merge gate:
 - No unexpected high-cardinality labels appear in AMP.
 - Destroy removes AMP, endpoints, performance logs, and stops all publishers.
 
-PR 2 local implementation status on 2026-07-27:
+PR 2 repository implementation status at merge:
 
 - [x] AMP workspace, outputs, removal policy, and seven-day retention modeled.
 - [x] One-AZ `aps-workspaces` and regional STS endpoints/policies modeled.
@@ -1025,7 +1029,8 @@ PR 2 local implementation status on 2026-07-27:
 - [x] The pinned ADOT image starts successfully with the complete configuration.
 - [x] The full credential-free `npm -w ecs-infra run ci` gate passes.
 - [ ] Deploy, run both managed-metrics and X-Ray laptop smokes, inspect
-  collector labels/logs, destroy, and record the result before merge.
+  collector labels/logs, destroy, and record the result. Account-specific
+  acceptance output is not stored in this repository.
 
 ### PR 3: Managed Grafana, Dashboard, And Final Operations
 
@@ -1083,7 +1088,9 @@ PR issue link: `Closes #38`
      `docs/operations/runbook.md`.
    - Notes: record the deployed Grafana version and any manual setup caveats.
    - Verification: all 15 panels render expected data or an explicitly valid
-     zero state; datasource test buttons pass.
+   zero state; the AMP test passes and a CloudWatch metric query succeeds.
+   Grafana's combined CloudWatch metrics/logs health check may report the
+   intentionally denied Logs access.
 
 6. Complete lifecycle documentation and archive the plan.
    - Change: document destroy checks, historical CloudWatch datapoint retention,
@@ -1104,7 +1111,9 @@ PR 3 merge gate:
 
 - Identity Center user can authenticate and is assigned Grafana Admin.
 - Grafana endpoint rejects clients outside the configured CIDR.
-- AMP and CloudWatch data sources pass connection tests.
+- AMP passes its connection test. CloudWatch successfully renders a metric
+  query; a health-check error limited to intentionally denied Logs access is
+  accepted and must not be fixed by broadening the metrics-only role.
 - The repository dashboard imports and all 15 panels are reviewed.
 - Managed metric and X-Ray smoke checks pass.
 - `cdk destroy` removes AMP, Grafana, prefix list, endpoints, roles, and owned
@@ -1112,6 +1121,24 @@ PR 3 merge gate:
 - No ECS/ADOT publisher remains.
 - Identity Center/Organizations persistence and CloudWatch metric expiry are
   explicitly acknowledged.
+
+PR 3 local implementation status on 2026-07-28:
+
+- [x] Customer-managed Grafana role with confused-deputy trust conditions and
+  metrics-only AMP/CloudWatch read policies modeled.
+- [x] One-entry CIDR prefix list, Identity Center-authenticated Grafana
+  workspace, destructive lifecycle, and outputs modeled.
+- [x] CDK assertions cover resource properties, trust, least privilege,
+  network access, omitted service-managed/VPC/alert properties, and outputs.
+- [x] The repository contains the exact 15-panel AMP/CloudWatch dashboard and a
+  credential-free semantic validator wired into CI.
+- [x] Identity Center, data-source, import, visual acceptance, diagnostics,
+  cost, and teardown procedures are documented.
+- [ ] Enable/verify Identity Center, deploy, assign the Admin user, configure
+  both data sources, import and visually inspect all panels, run metric/X-Ray
+  smokes, prove the outside-CIDR rejection, destroy, and record the result.
+- [ ] After deployed acceptance, archive this plan and update #30's prerequisite
+  as satisfied before merging the issue-closing PR.
 
 ## 13. Testing Strategy
 
