@@ -85,8 +85,9 @@ The first slice is delivered by PR
 [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41): the
 existing in-memory service exports curated OTel application metrics to
 CloudWatch through ADOT's `awsemf` exporter. The current second slice adds AMP
-remote write and ECS metrics, and the third adds Managed Grafana and the initial
-dashboard.
+remote write and ECS metrics. Its local implementation is complete; deployed
+laptop acceptance and merge remain pending. The third slice adds Managed
+Grafana and the initial dashboard.
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).

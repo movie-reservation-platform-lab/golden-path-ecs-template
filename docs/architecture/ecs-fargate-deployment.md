@@ -24,7 +24,7 @@ flowchart TB
 
     subgraph ecs["Amazon ECS"]
       direction LR
-      cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo"]
+      cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo<br/>enhanced Container Insights"]
       service["Fargate service<br/>desired count: 1"]
       cluster -->|"hosts"| service
     end
@@ -45,7 +45,7 @@ flowchart TB
           adot["Nonessential ADOT<br/>128 CPU / 384 MiB<br/>health 13133"]
           app -->|"OTLP/HTTP traces + metrics<br/>127.0.0.1:4318"| adot
         end
-        interfaceEndpoints["Interface VPC endpoints<br/>ECR API + ECR Docker<br/>CloudWatch Logs + X-Ray<br/>SSM Messages optional"]
+        interfaceEndpoints["Interface VPC endpoints<br/>ECR API + ECR Docker<br/>CloudWatch Logs + X-Ray<br/>AMP data plane + regional STS<br/>SSM Messages optional"]
         s3Endpoint["S3 gateway endpoint"]
 
         app -->|"HTTPS 443"| interfaceEndpoints
@@ -61,14 +61,18 @@ flowchart TB
 
     ecr["Amazon ECR<br/>app + ADOT CDK assets"]
     s3["Amazon S3<br/>ECR image layers"]
-    logs["CloudWatch<br/>app + ADOT + EMF log groups<br/>custom application metrics"]
+    logs["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics"]
     xray["AWS X-Ray<br/>trace segments"]
+    amp["Amazon Managed Service for Prometheus<br/>application + curated ECS metrics<br/>7-day retention"]
+    sts["AWS STS<br/>regional identity endpoint"]
     ssm["SSM Messages<br/>optional ECS Exec"]
 
     service -->|"maintains one task"| task
     interfaceEndpoints --> ecr
     interfaceEndpoints --> logs
     interfaceEndpoints --> xray
+    interfaceEndpoints --> amp
+    interfaceEndpoints --> sts
     interfaceEndpoints -.->|"when ECS Exec is enabled"| ssm
     s3Endpoint --> s3
   end
@@ -80,7 +84,7 @@ flowchart TB
 
   class igw,alb,interfaceEndpoints,s3Endpoint network
   class cluster,service,task,app,adot compute
-  class ecr,s3,logs,xray awsService
+  class ecr,s3,logs,xray,amp,sts awsService
   class ssm optional
 ```
 
@@ -103,18 +107,20 @@ flowchart TB
       direction LR
       ecr["Amazon ECR<br/>CDK asset repository<br/>app + ADOT images"]
       s3["Amazon S3<br/>ECR image layers"]
-      cloudwatch["CloudWatch<br/>app + ADOT + EMF log groups<br/>custom application metrics<br/>7-day log retention"]
+      cloudwatch["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics<br/>7-day log retention"]
       xray["AWS X-Ray<br/>trace segments"]
+      amp["AMP workspace<br/>application + curated ECS metrics<br/>7-day retention"]
+      sts["Regional AWS STS<br/>collector identity calls"]
       ssm["SSM Messages<br/>ECS Exec channels"]
     end
 
     subgraph ecsResources["Amazon ECS / Fargate resources"]
       direction LR
-      cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo<br/>Container Insights disabled"]
+      cluster["Application ECS cluster<br/>movie-reservation-platform-aws-demo<br/>enhanced Container Insights"]
       service["Fargate service<br/>desired count: 1<br/>deployment rollback enabled<br/>health grace: 60s"]
       taskDefinition["Fargate task definition<br/>512 CPU units / 1024 MiB<br/>essential app + nonessential ADOT<br/>separate awslogs drivers"]
       executionRole["Task execution role<br/>image pull + log delivery"]
-      taskRole["Shared task role<br/>X-Ray writes + scoped EMF log writes<br/>+ ECS Exec when enabled"]
+      taskRole["Shared task role<br/>X-Ray + scoped EMF writes<br/>workspace-scoped AMP remote write<br/>+ ECS Exec when enabled"]
 
       cluster -->|"hosts"| service
       taskDefinition -->|"used by"| service
@@ -148,6 +154,8 @@ flowchart TB
           ecrDockerEndpoint["ECR Docker<br/>interface endpoint"]
           logsEndpoint["CloudWatch Logs<br/>interface endpoint"]
           xrayEndpoint["X-Ray<br/>interface endpoint<br/>write-only policy"]
+          ampEndpoint["AMP workspaces<br/>interface endpoint<br/>remote-write-only policy"]
+          stsEndpoint["Regional STS<br/>interface endpoint<br/>identity-only policy"]
           s3Endpoint["S3<br/>gateway endpoint"]
           ssmEndpoint["SSM Messages<br/>interface endpoint<br/>optional"]
         end
@@ -158,6 +166,8 @@ flowchart TB
         task -->|"image layers"| s3Endpoint
         task -->|"HTTPS 443<br/>app/ADOT logs + EMF events"| logsEndpoint
         task -->|"HTTPS 443<br/>trace writes"| xrayEndpoint
+        task -->|"HTTPS 443<br/>Prometheus remote write"| ampEndpoint
+        task -->|"HTTPS 443<br/>SigV4 identity"| stsEndpoint
         task -.->|"HTTPS 443<br/>enableEcsExec=true"| ssmEndpoint
       end
 
@@ -179,6 +189,8 @@ flowchart TB
       endpointSg -. "attached to" .-> ecrDockerEndpoint
       endpointSg -. "attached to" .-> logsEndpoint
       endpointSg -. "attached to" .-> xrayEndpoint
+      endpointSg -. "attached to" .-> ampEndpoint
+      endpointSg -. "attached to" .-> stsEndpoint
       endpointSg -. "attached when enabled" .-> ssmEndpoint
     end
 
@@ -190,6 +202,8 @@ flowchart TB
     s3Endpoint --> s3
     logsEndpoint --> cloudwatch
     xrayEndpoint --> xray
+    ampEndpoint --> amp
+    stsEndpoint --> sts
     ssmEndpoint -.-> ssm
 
     executionRole -. "permits image pull" .-> ecr
@@ -197,6 +211,7 @@ flowchart TB
     taskRole -. "permits Exec when enabled" .-> ssm
     taskRole -. "permits two write actions" .-> xray
     taskRole -. "permits stream + event writes<br/>to named EMF log group" .-> cloudwatch
+    taskRole -. "permits remote write<br/>to one workspace" .-> amp
   end
 
   classDef network fill:#eaf4ff,stroke:#2563eb,color:#111827
@@ -205,9 +220,9 @@ flowchart TB
   classDef security fill:#fff1f2,stroke:#be123c,color:#111827
   classDef optional fill:#f5f5f5,stroke:#6b7280,color:#111827,stroke-dasharray: 5 5
 
-  class igw,publicRoute,alb,listener,targetGroup,isolatedRoute,ecrApiEndpoint,ecrDockerEndpoint,logsEndpoint,xrayEndpoint,s3Endpoint network
+  class igw,publicRoute,alb,listener,targetGroup,isolatedRoute,ecrApiEndpoint,ecrDockerEndpoint,logsEndpoint,xrayEndpoint,ampEndpoint,stsEndpoint,s3Endpoint network
   class cluster,service,taskDefinition,executionRole,taskRole,task compute
-  class ecr,s3,cloudwatch,xray,ssm awsService
+  class ecr,s3,cloudwatch,xray,amp,sts,ssm awsService
   class albSg,serviceSg,endpointSg security
   class ssmEndpoint optional
 ```
@@ -228,10 +243,11 @@ flowchart TB
   duplicate endpoint set before high availability is required. Target-group
   ALB cross-zone load balancing is explicitly enabled so both nodes can route
   to the healthy target in the selected workload AZ.
-- **No-NAT service access:** ECR API, ECR Docker, CloudWatch Logs, X-Ray, and
-  optional SSM Messages use interface endpoint ENIs. ECR image layers use the
-  S3 gateway endpoint attached only to the selected workload subnet's route
-  table.
+- **No-NAT service access:** ECR API, ECR Docker, CloudWatch Logs, X-Ray, the
+  AMP workspace data plane, regional STS, and optional SSM Messages use
+  interface endpoint ENIs. ECR image layers use the S3 gateway endpoint
+  attached only to the selected workload subnet's route table. There is no AMP
+  control-plane endpoint because the running task only writes metrics.
 - **ECS control resources:** the cluster, service, task definition, and IAM roles
   are regional resources. The running Fargate task is the part placed in the
   selected VPC subnet.
@@ -245,18 +261,28 @@ flowchart TB
   app container or task unhealthy.
 - **Telemetry boundary:** the application emits standard OTLP and W3C context.
   ADOT owns AWS credentials, X-Ray translation, CloudWatch dimension shaping,
-  and EMF publication. There are no task security group rules for ports 4318 or
-  13133 because both listeners use task loopback. EMF uses the existing
-  CloudWatch Logs endpoint rather than a CloudWatch Metrics endpoint.
+  EMF publication, AMP label shaping, and SigV4 remote write. There are no task
+  security group rules for ports 4318 or 13133 because both listeners use task
+  loopback. EMF uses the existing CloudWatch Logs endpoint rather than a
+  CloudWatch Metrics endpoint.
 - **Application metrics:** the Node.js SDK exports every 30 seconds by default,
   and typed CDK context can set an integer cadence from 5 through 300 seconds.
   ADOT disables automatic dimension rollups and exports only the ten declared
   instruments under
   `GoldenPath/aws-demo/movie-reservation-service`. `ServiceName`,
   `Environment`, and metric-specific bounded attributes form the only
-  CloudWatch dimensions. AMP, ECS task/container metrics, and enhanced
-  Container Insights remain the next issue #38 slice; Grafana remains the final
-  issue #38 slice.
+  CloudWatch dimensions. The same application stream is sent to AMP with only
+  the stable `service_name`, `deployment_environment`, and instrument
+  attributes as labels. The pipeline removes `service.instance.id` and disables
+  generated target/scope metadata so per-process identity cannot re-enter the
+  Prometheus series implicitly.
+- **ECS metrics:** ADOT exports only eight task/container CPU and memory
+  reserved/utilized metrics to AMP. It preserves cluster, service, task family,
+  container name, and Region while deleting task/container identities, image
+  identity, timestamps, and other churn before resource-to-label conversion.
+  Enhanced Container Insights independently supplies the AWS-native
+  task/container view in CloudWatch. Managed Grafana remains the final issue
+  #38 slice.
 - **Trace privacy:** the X-Ray exporter keeps `index_all_attributes: false` and
   configures no indexed attributes. The current `enduser.id` span attribute is
   nevertheless stable/linkable and maps to X-Ray's dedicated `user` field; the

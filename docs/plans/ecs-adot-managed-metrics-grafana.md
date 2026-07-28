@@ -1,6 +1,7 @@
 # Implementation Plan: Issue #38 ECS Managed Metrics And Grafana
 
-Status: in progress (PR 2 of 3; PR 1 delivered by PR #41)
+Status: in progress (PR 2 implemented locally; deployed acceptance and merge
+pending; PR 1 delivered by PR #41)
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
@@ -94,6 +95,8 @@ provider.
   Trace and log investigation remains a runbook workflow in the AWS consoles.
 - Do not automate IAM Identity Center user creation, Grafana user assignment,
   Grafana data-source creation, or dashboard import.
+- Do not provision a deployed smoke-test runner through Lambda, CodeBuild, ECS,
+  or another AWS service, and do not add GitHub-to-AWS OIDC in #38.
 - Do not use Terraform, a Grafana provider, a CDK custom resource, or a Grafana
   API token in #38.
 - Do not add SAML or an external identity provider. A future migration to Google
@@ -122,22 +125,25 @@ provider.
   plus a restartable, nonessential ADOT sidecar at 128 CPU units and 384 MiB.
 - The application sends OTLP/HTTP traces and metrics to `127.0.0.1:4318`; no
   collector port is exposed through a security group or task port mapping.
-- The task uses S3, ECR API, ECR Docker, CloudWatch Logs, and X-Ray VPC
-  endpoints. SSM Messages is optional for ECS Exec.
-- The ECS cluster explicitly has Container Insights disabled.
+- The task uses S3, ECR API, ECR Docker, CloudWatch Logs, X-Ray,
+  `aps-workspaces`, and regional STS VPC endpoints. SSM Messages is optional for
+  ECS Exec.
+- The ECS cluster enables enhanced Container Insights and owns the conventional
+  performance log group.
+- The stack owns a disposable AMP workspace with seven-day retention.
 - `ecs-infra/lib/config/platform-config.ts` validates untrusted CDK context once
   and passes a typed `PlatformConfig` into the stack.
-- App, ADOT, and application-metrics EMF log groups have one-week retention and
-  `DESTROY` removal policies.
+- App, ADOT, application-metrics EMF, and Container Insights performance log
+  groups have one-week retention and `DESTROY` removal policies.
 - The task role grants X-Ray write actions and scoped CloudWatch Logs write
-  access for the EMF metrics log group, plus ECS Exec actions when that feature
-  is enabled.
+  access for the EMF metrics log group, workspace-scoped `aps:RemoteWrite`, plus
+  ECS Exec actions when that feature is enabled.
 
 ### Collector And Application Metrics
 
-- `ecs-infra/adot-collector/adot-config.yaml` currently has the delivered X-Ray
-  trace pipeline and the delivered `awsemf/application` CloudWatch metrics
-  pipeline.
+- `ecs-infra/adot-collector/adot-config.yaml` preserves the delivered X-Ray and
+  `awsemf/application` pipelines and adds separate application/ECS AMP
+  pipelines with SigV4 remote write.
 - The pinned ADOT image is validated by
   `ecs-infra/scripts/validate-adot-image.sh`; validation starts the real image
   and waits for its health extension.
@@ -162,8 +168,9 @@ provider.
   type. Request, trace, user, and reservation IDs are not metric labels.
 - The existing worker and stable-random unexpected-error policy are implemented,
   tested, and enabled through ECS environment variables for the AWS demo.
-- AMP, ADOT-collected ECS task/container metrics, enhanced Container Insights,
-  and Amazon Managed Grafana are not delivered yet.
+- AMP, ADOT-collected ECS task/container metrics, and enhanced Container
+  Insights are implemented on the PR 2 branch but are not yet proven by a
+  deployed smoke or merged. Amazon Managed Grafana remains PR 3.
 
 ### Verification And Documentation
 
@@ -171,9 +178,10 @@ provider.
   CloudFormation.
 - `ecs-infra/scripts/xray-smoke.sh` is the established laptop-driven AWS smoke
   pattern and has credential-free self-tests.
-- `ecs-infra/scripts/managed-metrics-smoke.sh` is the delivered
-  CloudWatch-application-metrics smoke pattern and has credential-free
-  self-tests.
+- `ecs-infra/scripts/managed-metrics-smoke.sh` now extends the delivered
+  CloudWatch smoke with profile-aware AMP and enhanced Container Insights
+  checks, bounded-label validation, a sanitized report, and credential-free
+  fake-command tests.
 - `ecs-infra/package.json` combines TypeScript build, Jest, ADOT image
   validation, smoke self-tests, and CDK synth in `npm run ci`.
 - `docs/operations/aws-cdk-local-deployment.md` owns the laptop deployment and
@@ -231,9 +239,14 @@ multi-service, log, trace, fault, or placeholder saturation panels into #38.
 - Grafana/dashboard automation is explicitly deferred for later comparison of
   the Grafana API, Terraform Grafana provider, and a CDK custom resource.
 - Pull requests are sequential against `main`, not stacked.
-- Public CI remains credential-free.
-- The laptop acceptance workflow automates traffic generation and CloudWatch/AMP
-  queries; Grafana visual acceptance remains manual.
+- Public CI remains credential-free and runs only build, synth, unit/contract,
+  real-image configuration, and smoke-helper self-tests. It does not deploy,
+  query, or destroy AWS resources.
+- Starting in PR 2, deployed acceptance runs from the developer laptop that
+  deploys the stack. The laptop uses the validated `allowedIngressCidr` path to
+  the public ALB, explicit `AWS_PROFILE` and `AWS_REGION` values for AWS APIs,
+  and `awscurl` with that profile for SigV4-signed AMP PromQL queries.
+- Grafana visual acceptance remains manual from the same trusted laptop.
 
 ### Assumptions
 
@@ -398,7 +411,16 @@ Configure `prometheusremotewrite` with:
 - `sigv4auth` service `aps`.
 - The stack Region.
 - `add_metric_suffixes: false` so existing dashboard metric names remain stable.
-- Resource-to-telemetry conversion enabled for curated labels.
+- Resource-to-telemetry conversion disabled for application metrics. The pinned
+  ADOT image has no transform processor, so an attributes processor copies only
+  `service_name` and `deployment_environment` into application datapoints while
+  preserving the instruments' already-bounded attributes. A resource processor
+  deletes `service.instance.id` because Prometheus translation otherwise
+  special-cases it into a per-process `instance` label.
+- Resource-to-telemetry conversion enabled only for ECS metrics, after a
+  resource processor deletes every known non-contract/churn attribute.
+- Generated `target_info` and scope-information series disabled on both AMP
+  exporters so the curated metric catalog is not widened implicitly.
 - Explicit bounded retry, sending queue, and timeout settings validated against
   the pinned ADOT image.
 
@@ -583,6 +605,8 @@ Add CloudFormation outputs needed by humans and smoke tooling:
 
 ```text
 CloudWatchApplicationMetricsNamespace
+EcsClusterName
+EcsServiceName
 AmpWorkspaceId
 AmpWorkspaceArn
 AmpPrometheusEndpoint
@@ -673,6 +697,22 @@ implemented here.
 - Decision: deferred with the broader networking redesign. Use CIDR-restricted
   public access plus Identity Center.
 
+### Alternative I: Run Deployed Acceptance In CI Or AWS Compute
+
+- GitHub-hosted CI with AWS OIDC would automate deploy/query/destroy without
+  long-lived AWS secrets, but its dynamic egress does not fit the current
+  laptop `/32` ALB allowlist. Static-IP or self-hosted runners would add
+  infrastructure and security ownership beyond #38.
+- A one-off ECS task, Lambda function, or VPC-enabled CodeBuild project could
+  run inside the account, but the current service exposes no private test
+  endpoint to such a runner. Supporting one would require a new security-group
+  edge and direct task discovery, service discovery, or an internal load
+  balancer, plus runner IAM, packaging, logs, result collection, and teardown.
+- Decision: deferred. For #38, run deployed acceptance from the developer
+  laptop already trusted by `allowedIngressCidr`. Keep the smoke helper
+  portable so a future delivery-system issue can move it behind a private
+  service endpoint without rewriting its assertions.
+
 ## 8. API / Interface Changes
 
 ### TypeScript/CDK Configuration
@@ -719,7 +759,16 @@ Add `ecs-infra/scripts/managed-metrics-smoke.sh` with:
 - `--report PATH`
 
 Require explicit `AWS_PROFILE` and `AWS_REGION`, following the X-Ray smoke
-script. The report is JSON and contains no credentials or request bodies.
+script. Starting in PR 2, require `awscurl` on the developer laptop and invoke
+it with `--profile "${AWS_PROFILE}"`, `--region "${AWS_REGION}"`, and
+`--service aps`. Build the query URL from the `AmpPrometheusEndpoint`
+CloudFormation output by normalizing its trailing slash and appending `query`.
+Do not extract, print, or pass raw access keys to the script. The report is JSON
+and contains no credentials or request bodies.
+
+Credential-free self-tests replace both `aws` and `awscurl` with local fakes.
+They validate argument construction, AMP response parsing, timeouts, and
+failure-stage reporting without contacting AWS.
 
 ### Application API
 
@@ -948,7 +997,11 @@ PR issue link: `Refs #38`
      `docs/operations/aws-cdk-local-deployment.md`,
      `docs/operations/runbook.md`,
      `docs/architecture/ecs-fargate-deployment.md`.
-   - Verification: self-tests plus deployed dual-route acceptance.
+   - Notes: deployed acceptance runs from the developer laptop. Use
+     profile-aware `awscurl` for SigV4-signed AMP PromQL queries; do not add AWS
+     credentials or deployed-test permissions to public CI.
+   - Verification: credential-free self-tests with fake `aws`/`awscurl`
+     commands plus laptop-driven deployed dual-route acceptance.
 
 PR 2 merge gate:
 
@@ -958,6 +1011,21 @@ PR 2 merge gate:
 - Enhanced Container Insights data is queryable from CloudWatch.
 - No unexpected high-cardinality labels appear in AMP.
 - Destroy removes AMP, endpoints, performance logs, and stops all publishers.
+
+PR 2 local implementation status on 2026-07-27:
+
+- [x] AMP workspace, outputs, removal policy, and seven-day retention modeled.
+- [x] One-AZ `aps-workspaces` and regional STS endpoints/policies modeled.
+- [x] Workspace-scoped SigV4 remote write and task IAM configured.
+- [x] Application dual routing and the eight-metric ECS AMP allowlist
+  configured with bounded labels.
+- [x] Enhanced Container Insights and its owned performance log group modeled.
+- [x] Credential-free smoke tests cover CloudWatch, AMP arguments/contract, and
+  Container Insights.
+- [x] The pinned ADOT image starts successfully with the complete configuration.
+- [x] The full credential-free `npm -w ecs-infra run ci` gate passes.
+- [ ] Deploy, run both managed-metrics and X-Ray laptop smokes, inspect
+  collector labels/logs, destroy, and record the result before merge.
 
 ### PR 3: Managed Grafana, Dashboard, And Final Operations
 
@@ -1047,7 +1115,11 @@ PR 3 merge gate:
 
 ## 13. Testing Strategy
 
-### Credential-Free CI
+### Credential-Free CI — No Deployed AWS Acceptance
+
+CI validates the artifacts that can be proved without an AWS account. It does
+not deploy the stack, generate traffic against the deployed ALB, query
+CloudWatch/AMP/X-Ray, or destroy resources in #38.
 
 Run on every PR:
 
@@ -1081,12 +1153,15 @@ Tests must cover:
 - X-Ray exporter/IAM regression;
 - ADOT image startup with every referenced receiver, processor, exporter, and
   extension;
-- smoke helper parsing and failure messages without AWS calls;
+- smoke helper AWS CLI and `awscurl` argument construction, response parsing,
+  and failure messages without AWS calls;
 - dashboard JSON syntax and semantic contract.
 
-### Laptop AWS Acceptance
+### Laptop AWS Acceptance — Selected PR 2 Execution Location
 
-Use explicit `AWS_PROFILE` and `AWS_REGION=eu-central-1`:
+Use explicit `AWS_PROFILE` and `AWS_REGION=eu-central-1`. Starting in PR 2,
+install `awscurl`; the managed-metrics smoke uses it with the named profile to
+sign AMP requests without handling raw credentials:
 
 1. Deploy the current PR's stack.
 2. Confirm the ECS service and ADOT container are healthy.
@@ -1107,7 +1182,9 @@ Use explicit `AWS_PROFILE` and `AWS_REGION=eu-central-1`:
 14. Destroy the stack and execute the teardown checks.
 
 The smoke must use bounded request counts and timeouts. It must not become a
-load test.
+load test. This deployed acceptance is a PR 2 merge gate, but it is invoked
+manually from the laptop rather than from public CI. Handoff must report whether
+it was run and summarize the result.
 
 ### Regression Scope
 
@@ -1188,6 +1265,7 @@ After `cdk destroy`:
 | Nonessential collector dies while app remains healthy | Medium | Medium | ECS restart policy, collector health/log diagnostics, replacement procedure |
 | Dashboard JSON hardcodes local data sources | Medium | Medium | Import-time data-source inputs and semantic JSON validation |
 | Manual Grafana setup drifts | Medium | Medium | Versioned JSON plus exact runbook; automation follow-up after workflow is proven |
+| Laptop-only deployed acceptance is skipped | High | Medium | Keep it as an explicit PR 2 merge gate, emit a sanitized JSON report, and require handoff to state whether it ran |
 | CloudWatch metrics remain after destroy | Low | Certain | Explain non-deletable retention; verify publication stopped and paid resources removed |
 | Management-account deployment does not model production isolation | Medium | Certain | Accept for personal demo; future multi-account/network redesign |
 
@@ -1266,6 +1344,8 @@ Constraints:
 - Keep all metric labels/dimensions bounded and explicitly allowlisted.
 - Keep ADOT nonessential and telemetry fail-open.
 - Keep public CI credential-free.
+- Run deployed PR 2 acceptance from the developer laptop; use profile-aware
+  awscurl for AMP and never expose raw AWS credentials.
 - Use the installed CDK types and validate the pinned real ADOT image.
 - Update only the tests and docs owned by the selected PR package.
 - Do not automate Identity Center or Grafana APIs in #38.
@@ -1297,6 +1377,7 @@ AWS acceptance steps were or were not run.
 - [ADOT Prometheus remote write for AMP](https://aws-otel.github.io/docs/getting-started/prometheus-remote-write-exporter/)
 - [ADOT ECS container metrics receiver](https://aws-otel.github.io/docs/components/ecs-metrics-receiver/)
 - [AMP interface VPC endpoints](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-and-interface-VPC.html)
+- [Use awscurl with AMP Prometheus-compatible APIs](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-compatible-APIs.html)
 - [ECS enhanced Container Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-enhanced-observability-metrics-ECS.html)
 - [Managed Grafana network access control](https://docs.aws.amazon.com/grafana/latest/userguide/AMG-configure-nac.html)
 - [Managed Grafana customer-managed permissions](https://docs.aws.amazon.com/grafana/latest/userguide/AMG-manage-permissions.html)
