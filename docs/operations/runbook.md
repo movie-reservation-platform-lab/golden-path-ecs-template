@@ -321,14 +321,20 @@ Current checks for the in-memory ECS/ADOT stack:
   reservation outcomes under the development-only deterministic injection
   policy;
 - `npm -w ecs-infra run smoke:managed-metrics` finds
-  `graphql_operation_total` in
-  `GoldenPath/aws-demo/movie-reservation-service`;
+  `graphql_operation_total` in both
+  `GoldenPath/aws-demo/movie-reservation-service` and AMP, finds all eight
+  curated ECS task/container CPU and memory metrics in AMP with bounded labels,
+  and finds enhanced Container Insights task/container utilization in
+  CloudWatch;
 - `npm -w ecs-infra run smoke:xray` finds the exact generated trace and
   `movie-reservation-service` segment through `BatchGetTraces`;
-- the task role has only the two X-Ray write actions plus stream/event writes
-  scoped to the stack-owned EMF log group;
-- no AMP, enhanced Container Insights, Managed Grafana, alarm, or database
-  resources appear before their own PRs/issues.
+- the task role has only the two X-Ray write actions, stream/event writes scoped
+  to the stack-owned EMF log group, workspace-scoped `aps:RemoteWrite`, and
+  optional ECS Exec actions;
+- the no-NAT path includes only the AMP workspace and regional STS data-plane
+  endpoints needed by the collector;
+- no Managed Grafana, alarm, or database resources appear before their own
+  PRs/issues.
 
 Use the exact AWS CLI inspection, metric/trace smoke, rollback, and teardown
 commands in [the local CDK deployment runbook](aws-cdk-local-deployment.md).

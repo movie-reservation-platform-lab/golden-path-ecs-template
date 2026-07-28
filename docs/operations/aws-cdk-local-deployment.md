@@ -6,8 +6,8 @@ deployed application resources afterward.
 
 The current stack is a learning/demo environment, not a production deployment.
 It creates resources that incur charges while they exist, including one Fargate
-task, an Application Load Balancer, four interface VPC endpoints, CloudWatch
-Logs ingestion, and CloudWatch custom application metrics.
+task, an Application Load Balancer, six interface VPC endpoints, CloudWatch
+Logs/custom/enhanced Container Insights metrics, and an AMP workspace.
 
 ## Identity recommendation
 
@@ -137,11 +137,15 @@ Required tools:
 - AWS CLI v2 version 2.32.0 or newer, which supports browser-based
   `aws login`;
 - Docker with a running daemon;
-- `curl` for discovering the laptop's public IPv4 address and smoke checks.
+- `curl` for discovering the laptop's public IPv4 address and smoke checks;
+- `awscurl` for SigV4-signed AMP acceptance queries with the named AWS profile.
 
 Use the official AWS CLI v2 installation instructions for the laptop operating
 system. Do not install a global CDK CLI; this repository pins the CLI through
-the `ecs-infra` workspace.
+the `ecs-infra` workspace. Install `awscurl` using the platform-supported method
+from the official AMP instructions (`brew install awscurl` on macOS or a
+Python package installation on Linux). The smoke passes only the named profile;
+do not put raw access keys in its command line or report.
 
 Install repository dependencies and inspect the tool versions:
 
@@ -153,6 +157,7 @@ node --version
 npm --version
 aws --version
 docker --version
+awscurl --help
 npm -w ecs-infra run cdk -- --version
 ```
 
@@ -327,13 +332,15 @@ npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
 
-For the initial deployment, expect an entirely new stack. For the PR 1 update,
-expect the application-metrics log group, task-definition environment changes,
-the namespace output, and task-role log-stream writes. Stop if the diff targets
-the wrong account/Region, opens ingress beyond the `/32`, adds NAT, adds
-AMP/Grafana resources, removes an unexpected resource, grants X-Ray actions
-beyond `PutTraceSegments` and `PutTelemetryRecords`, or grants CloudWatch
-permissions beyond the named EMF log group.
+For the initial deployment, expect an entirely new stack. For the current #38
+slice on top of PR #41, expect one disposable AMP workspace, `aps-workspaces`
+and regional STS interface endpoints, one Container Insights performance log
+group, the cluster's `containerInsights=enhanced` setting, a workspace-scoped
+`aps:RemoteWrite` task-role statement, new outputs, and an updated task
+definition. Stop if the diff targets the wrong account/Region, opens ingress
+beyond the `/32`, adds NAT, adds Managed Grafana or an AMP control-plane
+endpoint, removes an unexpected resource, or grants telemetry permissions
+beyond the named X-Ray/EMF/AMP resources and actions.
 
 ## Deploy
 
@@ -365,8 +372,10 @@ During deployment, CDK:
 5. waits while CloudFormation creates the network, endpoints, ECS service, ALB,
    and supporting resources.
 
-The stack was successfully deployed and destroyed from a laptop on 2026-07-17.
-A successful deploy has this shape (account-specific values are placeholders):
+The earlier stack was successfully deployed and destroyed from a laptop on
+2026-07-17. That evidence predates the current AMP/ECS-metrics slice, whose
+deployed acceptance must still be run. A successful deploy has this shape
+(account-specific values are placeholders):
 
 ```shell
 GoldenPathDemoStack: deploying... [1/1]
@@ -375,7 +384,12 @@ GoldenPathDemoStack: creating CloudFormation changeset...
  ✅  GoldenPathDemoStack
 
 Outputs:
+GoldenPathDemoStack.AmpPrometheusEndpoint = https://aps-workspaces.eu-central-1.amazonaws.com/workspaces/<workspace-id>/api/v1/
+GoldenPathDemoStack.AmpWorkspaceArn = arn:aws:aps:eu-central-1:123456789012:workspace/<workspace-id>
+GoldenPathDemoStack.AmpWorkspaceId = <workspace-id>
 GoldenPathDemoStack.CloudWatchApplicationMetricsNamespace = GoldenPath/aws-demo/movie-reservation-service
+GoldenPathDemoStack.EcsClusterName = movie-reservation-platform-aws-demo
+GoldenPathDemoStack.EcsServiceName = movie-reservation-service
 GoldenPathDemoStack.LoadBalancerDnsName = <generated-alb-name>.eu-central-1.elb.amazonaws.com
 Stack ARN:
 arn:aws:cloudformation:eu-central-1:123456789012:stack/GoldenPathDemoStack/<generated-id>
@@ -401,6 +415,13 @@ export ALB_DNS_NAME="$(aws cloudformation describe-stacks \
   --profile "$AWS_PROFILE" \
   --region "$AWS_REGION" \
   --query "Stacks[0].Outputs[?OutputKey=='LoadBalancerDnsName'].OutputValue | [0]" \
+  --output text)"
+
+export AMP_WORKSPACE_ID="$(aws cloudformation describe-stacks \
+  --stack-name GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query "Stacks[0].Outputs[?OutputKey=='AmpWorkspaceId'].OutputValue | [0]" \
   --output text)"
 
 printf 'http://%s\n' "$ALB_DNS_NAME"
@@ -474,11 +495,12 @@ aws logs tail \
   --region "$AWS_REGION"
 ```
 
-Expected startup entries name the OTLP receiver, memory limiter, attributes and
-batch processors, X-Ray and CloudWatch EMF exporters, and health extension.
-Permission, endpoint, retry, and export failures also appear here. The
-collector remains nonessential, so a healthy application does not prove either
-telemetry destination is receiving data.
+Expected startup entries name the OTLP and ECS container-metrics receivers,
+memory limiter, filter/resource/attributes/batch processors, X-Ray, CloudWatch
+EMF, and Prometheus remote-write exporters, SigV4 extension, and health
+extension. Permission, endpoint, retry, and export failures also appear here.
+The collector remains nonessential, so a healthy application does not prove
+any telemetry destination is receiving data.
 
 ### Run the deterministic X-Ray smoke
 
@@ -499,7 +521,7 @@ HTTP, GraphQL, X-Ray query, trace timeout, or wrong-service-segment failures.
 is enabled in the account, AWS documents that this API cannot retrieve those
 traces; revisit the smoke query before enabling that account feature.
 
-### Run the CloudWatch application-metrics smoke
+### Run the managed-metrics dual-route smoke
 
 ```bash
 npm -w ecs-infra run smoke:managed-metrics -- \
@@ -507,18 +529,28 @@ npm -w ecs-infra run smoke:managed-metrics -- \
   --report /tmp/golden-path-managed-metrics-smoke.json
 ```
 
-The script reads the ALB and CloudWatch namespace from stack outputs, discovers
-a real screening and its seats, and submits at most 12 reservation requests. It
-rotates through seats until a request confirms, then reuses that confirmed seat
-to produce either a failure from the deterministic 40% injection policy or a
-rejection because the seat is already reserved. It then waits through two
-default export intervals and polls CloudWatch `GetMetricData` for
-`graphql_operation_total`.
+The script reads the ALB, CloudWatch namespace, AMP endpoint, ECS cluster, and
+ECS service from stack outputs. It discovers a real screening and its seats and
+submits at most 12 reservation requests. It rotates through seats until a
+request confirms, then reuses that confirmed seat to produce either a failure
+from the deterministic 40% injection policy or a rejection because the seat is
+already reserved.
 
-The JSON report contains only aggregate outcome counts, the namespace, metric
-name, target, Region, and timing. It excludes request IDs, seat IDs, response
-bodies, account IDs, and credentials. A failure stage distinguishes stack
-output, catalog, reservation, CloudWatch API, and missing-datapoint failures.
+After two default export intervals, the smoke polls three contracts:
+
+1. CloudWatch contains `graphql_operation_total`.
+2. A profile-aware SigV4 `awscurl` query finds that application metric plus all
+   eight allowlisted task/container CPU and memory metrics in AMP. It requires
+   the stable application and ECS labels and rejects task/container identity,
+   image, and timestamp labels.
+3. CloudWatch contains task/container CPU and memory utilization through
+   enhanced Container Insights.
+
+The JSON report contains only aggregate outcome, datapoint, and series counts,
+the namespace, metric name, target, Region, and timing. It excludes request
+IDs, seat IDs, response bodies, account IDs, AMP series labels, and credentials.
+A failure stage distinguishes stack output, traffic, CloudWatch application
+metric, AMP query/contract, and Container Insights failures.
 
 When deploying with a nondefault metric cadence, set the pre-query wait to at
 least two intervals:
@@ -528,9 +560,9 @@ MANAGED_METRICS_SMOKE_SETTLE_SECONDS=90 \
   npm -w ecs-infra run smoke:managed-metrics -- --stack GoldenPathDemoStack
 ```
 
-PR 1 proves only the CloudWatch application path. AMP, ADOT-collected ECS
-metrics, enhanced Container Insights, and Managed Grafana arrive in the next
-two sequential PRs for issue #38.
+Run the existing X-Ray smoke separately; the two reports together are the
+current slice's laptop acceptance evidence. Managed Grafana arrives in the
+final #38 PR.
 
 ## Redeploy after a change
 
@@ -608,21 +640,35 @@ aws logs describe-log-groups \
   --region "$AWS_REGION" \
   --query 'logGroups[].logGroupName'
 
+aws logs describe-log-groups \
+  --log-group-name-prefix /aws/ecs/containerinsights/movie-reservation-platform-aws-demo/performance \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query 'logGroups[].logGroupName'
+
 aws ecs describe-clusters \
   --clusters movie-reservation-platform-aws-demo \
   --profile "$AWS_PROFILE" \
   --region "$AWS_REGION" \
   --query 'clusters[].{Name:clusterName,Status:status}'
+
+aws amp list-workspaces \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query "workspaces[?workspaceId=='${AMP_WORKSPACE_ID}'].workspaceId"
 ```
 
-The log group query should return an empty list, including the stack-owned
-`metrics` EMF group. ECS can temporarily report the deleted cluster as
-`INACTIVE`. The successful CloudFormation stack deletion is the authoritative
-lifecycle result for stack-owned resources. X-Ray retains ingested traces for
-30 days independently of this stack, so `cdk destroy` does not erase the smoke
-trace immediately. CloudWatch custom metric datapoints also cannot be deleted
-explicitly: removing the task and EMF log group stops new publication, while
-historical datapoints age out under CloudWatch's service retention.
+Both log-group queries should return empty lists, including the stack-owned
+`metrics` EMF and Container Insights performance groups. The AMP query must
+also return an empty list. ECS can temporarily report the deleted cluster as
+`INACTIVE`.
+The successful CloudFormation stack deletion is the authoritative lifecycle
+result for stack-owned resources. X-Ray retains ingested traces for 30 days
+independently of this stack, so `cdk destroy` does not erase the smoke trace
+immediately. CloudWatch custom and Container Insights metric datapoints also
+cannot be deleted explicitly: removing the task, cluster, and log groups stops
+new publication, while historical datapoints age out under CloudWatch's
+service retention.
 
 If deletion fails, inspect the first failing event before manually changing any
 resource:
@@ -642,6 +688,10 @@ manually first can make CloudFormation cleanup harder.
 Expected verification shape:
 
 ```shell
+[]
+
+[]
+
 []
 
 ...
@@ -707,20 +757,24 @@ Region:
 
 - one continuously desired Fargate task at 0.5 vCPU and 1024 MiB;
 - one Application Load Balancer, its capacity units, and public IPv4 usage;
-- four interface endpoints, each deployed in one Availability Zone, plus data
+- six interface endpoints, each deployed in one Availability Zone, plus data
   processing;
-- CloudWatch Logs ingestion and retained app, collector, and EMF data;
+- CloudWatch Logs ingestion and retained app, collector, EMF, and Container
+  Insights performance data;
 - CloudWatch custom metrics created from the ten declared application
   instruments and their bounded dimension combinations;
+- enhanced Container Insights task/container metrics;
+- AMP ingestion, storage, and query samples for the application and eight
+  curated ECS metrics, with seven-day workspace retention;
 - ECR and S3 storage for CDK assets;
 - normal data transfer charges.
 
 The S3 gateway endpoint has no hourly endpoint charge. The stack deliberately
-uses no NAT Gateway. Setting `enableEcsExec=true` adds a fifth interface
+uses no NAT Gateway. Setting `enableEcsExec=true` adds a seventh interface
 endpoint and therefore another hourly endpoint cost.
 
-After `cdk destroy`, the Fargate task, ALB, VPC endpoints, VPC, and all three
-service log groups should be gone. No emitter remains to publish new custom
+After `cdk destroy`, the Fargate task, ALB, AMP workspace, VPC endpoints, VPC,
+and all four log groups should be gone. No emitter remains to publish new
 metric datapoints. The bootstrap asset storage remains until its lifecycle
 rules or `cdk gc` remove unused objects and images. X-Ray traces and historical
 CloudWatch metric datapoints follow their service retention instead of
@@ -793,19 +847,33 @@ telemetry failure into an application outage.
 ### Managed metrics smoke times out
 
 Confirm the app and ADOT containers are running, then inspect the collector log
-for `awsemf/application`, credential, throttling, or `PutLogEvents` errors.
-Verify that the task role can call only `logs:CreateLogStream` and
-`logs:PutLogEvents` on
-`/golden-path/aws-demo/movie-reservation-service/metrics`, and that the existing
-CloudWatch Logs interface endpoint is healthy. No CloudWatch Metrics endpoint
-is required because ADOT writes EMF events through the Logs API.
+for `awsemf/application`, `prometheusremotewrite/application`,
+`prometheusremotewrite/ecs`, credential, throttling, retry, or dropped-data
+errors.
+
+Use the report's `failure_stage` to narrow the path:
+
+- `cloudwatch_metric` or `cloudwatch_query`: verify scoped
+  `logs:CreateLogStream`/`logs:PutLogEvents` access to the named EMF log group
+  and the CloudWatch Logs endpoint. No CloudWatch Metrics endpoint is required.
+- `amp_query`: refresh the laptop's named-profile login and confirm `awscurl`
+  can reach the stack-output query URL using Region `AWS_REGION` and service
+  `aps`.
+- `amp_metric` or `amp_contract`: verify the collector's regional STS mode, the
+  private `sts` and `aps-workspaces` endpoints/policies, and workspace-scoped
+  `aps:RemoteWrite` on the task role. Inspect returned labels before relaxing
+  the contract; task/container IDs and image/timestamp labels must stay absent.
+- `container_insights_query` or `container_insights_metric`: verify the cluster
+  setting is `enhanced`, the service has a running task, and the conventional
+  `/aws/ecs/containerinsights/movie-reservation-platform-aws-demo/performance`
+  log group is receiving events.
 
 If reservation outcome generation fails, inspect application logs for the fake
 worker and failure-injection configuration before increasing attempt limits.
-If outcomes pass but the metric is late, query the EMF log group and allow for
-CloudWatch ingestion delay. Roll back by redeploying the previous task
-definition or destroy the stack; telemetry failure must not be worked around by
-making ADOT essential.
+If outcomes pass but metrics are late, allow for the independent CloudWatch and
+AMP ingestion delays. Roll back by redeploying the previous task definition or
+destroy the stack; telemetry failure must not be worked around by making ADOT
+essential.
 
 ## Official references
 
@@ -825,3 +893,6 @@ making ADOT essential.
 - [Amazon VPC pricing](https://aws.amazon.com/vpc/pricing/)
 - [ADOT CloudWatch metrics](https://aws-otel.github.io/docs/getting-started/cloudwatch-metrics/)
 - [CloudWatch Embedded Metric Format](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format.html)
+- [Use `awscurl` with AMP Prometheus-compatible APIs](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-compatible-APIs.html)
+- [AMP interface VPC endpoints](https://docs.aws.amazon.com/prometheus/latest/userguide/AMP-and-interface-VPC.html)
+- [Enhanced ECS Container Insights metrics](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Container-Insights-enhanced-observability-metrics-ECS.html)
