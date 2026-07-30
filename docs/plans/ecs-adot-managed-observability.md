@@ -4,11 +4,12 @@
 > This document is background material, not an executable implementation
 > handoff. Issue #37 is delivered; its historical plan lives in
 > [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
-> The focused #38 implementation handoff now lives in
-> [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
+> The focused #38 implementation record now lives in
+> [`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md)
+> and is delivered by PRs #41, #42, and #43.
 > Use the still-relevant sections below only as background.
 
-Status update, 2026-07-28:
+Status update, 2026-07-30:
 
 - Wave 1 failure injection and Wave 2 ECS backend skeleton are delivered.
 - The Wave 2 stack was deployed successfully from a laptop and destroyed.
@@ -16,9 +17,9 @@ Status update, 2026-07-28:
   is delivered by PR #39: ADOT collector sidecar and X-Ray traces are now part
   of the ECS baseline.
 - [Issue #38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
-  is in progress. PR #41 delivered CloudWatch application metrics and PR #42
-  delivered AMP/ECS metrics plus enhanced Container Insights. The final slice
-  adds Amazon Managed Grafana, its initial dashboard, and final lifecycle docs.
+  is delivered by PRs #41, #42, and #43: CloudWatch application metrics,
+  AMP/ECS metrics, enhanced Container Insights, Amazon Managed Grafana, the
+  initial dashboard, and final lifecycle docs are now part of the ECS baseline.
 - The AWS observability slices use the existing in-memory service. A Postgres
   sidecar is no longer part of this plan. RDS and deployment-time migrations via
   a separate ECS `RunTask` remain under issue #7.
@@ -41,12 +42,11 @@ Also add demo-only reservation failure injection so roughly 40% of reservation
 requests fail as a production-looking `unexpected-error`. The goal is an
 on-call style investigation scenario, not a clearly labelled demo fault.
 
-Current next gate: complete the final #38 credential-free checks, then enable
-or verify Identity Center, deploy from the laptop, configure the two Grafana
-data sources, import and review the dashboard, rerun the managed-metrics and
-X-Ray smokes, and destroy the stack. Keep RDS, production OIDC, full CI/CD
-deployment automation, and the multi-service agent/MCP infrastructure as later
-slices.
+Current next gate: use #30 for production dashboard, saturation, alerting, and
+operator-procedure follow-up; use #44-#48 for repository organization,
+promotion-gated CI/CD, audit, identity, and ingress allowlist decisions. Keep
+RDS, production OIDC, full CI/CD deployment automation, and the multi-service
+agent/MCP infrastructure as later slices until those decisions are explicit.
 
 Recommended follow-up slice: add CI observability for GitHub Actions with a
 separate `workflow_run` telemetry workflow. Emit low-cardinality CloudWatch
@@ -118,9 +118,9 @@ GitHub runners and do not ship full GitHub job logs into AWS.
   sidecar, app OTLP trace export, a private X-Ray endpoint, least-privilege
   X-Ray write policies, validation scripts, trace smoke tooling, and runbook
   updates.
-- CloudWatch application metrics are delivered. AMP application/ECS metrics
-  and enhanced Container Insights are implemented on the active #38 branch but
-  await deployed acceptance and merge. AMG remains the final #38 slice.
+- Issue #38 is delivered on `main`: CloudWatch application metrics, AMP
+  application/ECS metrics, enhanced Container Insights, Managed Grafana, and the
+  initial dashboard are part of the ECS baseline.
 - `ecs-infra/package.json` already has `aws-cdk-lib`, `constructs`, Jest,
   TypeScript, and scripts for `build`, `test`, `cdk`, and `ci`.
 - `movie-reservation-service/Dockerfile` already builds the compiled NestJS
@@ -248,7 +248,7 @@ Official AWS sources checked:
   type.
 - Keep the first AWS implementation on the Option C cost/security path:
   public ALB, private ECS tasks, VPC endpoints, and no NAT Gateway.
-- Keep the delivered #37 baseline and current #38 work on the in-memory ECS
+- Keep the delivered #37/#38 AWS observability baseline on the in-memory ECS
   composition profile.
 - Add RDS later under #7 and execute migrations as a separate ECS `RunTask`
   during deployment, analogous to a Kubernetes Job.
@@ -1185,11 +1185,11 @@ small group of PRs unless the actual diff is tiny.
 
 ### Wave 4: CloudWatch, AMP, And Managed Grafana Metrics (#38)
 
-- Status: in progress through
-  [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
-  PR #41 delivered the CloudWatch application-metrics path and PR #42 delivered
+- Status: delivered by PRs #41, #42, and #43. Historical implementation record:
+  [`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md).
+  PR #41 delivered the CloudWatch application-metrics path, PR #42 delivered
   AMP remote write, ADOT-collected ECS task/container metrics, and enhanced
-  Container Insights. The current final slice owns Managed Grafana, its first
+  Container Insights, and PR #43 delivered Managed Grafana, its first
   dashboard, and final operations documentation.
 - Change: Extend the proven ADOT collector with CloudWatch metric export, AMP
   workspace/remote write, ECS task metrics, and an AMG workspace or documented
@@ -1504,8 +1504,8 @@ split across issues with different acceptance boundaries.
 
 - For issue #37 history, read
   [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
-- For issue #38, use the focused
-  [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md)
-  plan and implement only the next sequential PR package.
+- For issue #38 history, read the focused
+  [`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md)
+  implementation record.
 - Do not ask an implementation agent to deliver #37, #38, frontend hosting, CI
   telemetry, and failure-injection work from one branch.

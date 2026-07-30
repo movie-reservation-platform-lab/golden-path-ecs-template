@@ -1,6 +1,6 @@
 # Frontend Follow-Up Triage
 
-Last reviewed: 2026-07-17
+Last reviewed: 2026-07-30
 
 ## Current State
 
@@ -23,9 +23,9 @@ The delivered implementation records are:
 
 ## Recommended Order
 
-1. Reconcile #24 with the delivered baseline. Close it if its workspace/client
-   acceptance criteria are already met; otherwise implement only the remaining
-   gap.
+1. Reconcile #24 with the delivered baseline before writing code. Close it if
+   its workspace/client/header-propagation acceptance criteria are already met;
+   otherwise narrow the issue to only the remaining gap.
 2. Reconcile #25 with the existing reservation workflow, then finish the
    customer-facing product and state gaps.
 3. Complete #26 by verifying propagation and the end-to-end local observability

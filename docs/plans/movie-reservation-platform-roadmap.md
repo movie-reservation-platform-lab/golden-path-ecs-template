@@ -1,6 +1,6 @@
 # Movie Reservation Platform Roadmap
 
-Last reviewed: 2026-07-27
+Last reviewed: 2026-07-30
 
 ## Purpose
 
@@ -23,8 +23,9 @@ The repository currently contains three npm workspaces:
   boundaries, runtime GraphQL response parsing, trace propagation, and Vitest
   coverage;
 - `ecs-infra`: a tested CDK stack for a private Fargate task behind a
-  CIDR-restricted public ALB, using CDK Docker image assets, no NAT Gateway, and
-  private AWS service endpoints.
+  CIDR-restricted public ALB, using CDK Docker image assets, no NAT Gateway,
+  private AWS service endpoints, X-Ray traces, CloudWatch/AMP metrics, and a
+  Managed Grafana dashboard.
 
 The ECS skeleton was deployed successfully from a laptop and destroyed on
 2026-07-17. Public CI remains credential-free and validates all three
@@ -43,16 +44,17 @@ workspaces. AWS deployment automation is deliberately deferred.
 | D8a frontend baseline                      | #23                 | React/Vite workspace and stabilized booking workflow adopted                             |
 | ECS backend CDK skeleton                   | #6 / PR #36         | Fargate, ALB, image asset, logging, endpoints, tests, and local deployment runbook added |
 | AWS ADOT/X-Ray trace path                  | #37 / PR #39        | Repo-owned ADOT sidecar, private X-Ray path, smoke tooling, and runbook added            |
+| AWS managed metrics and Grafana            | #38 / PRs #41-#43   | CloudWatch/AMP metrics, enhanced Container Insights, Managed Grafana, and dashboard added |
 
 The corresponding detailed records live in
 [`delivered/`](delivered/).
 
 ## Active Workstreams
 
-The next work is not one fully serial queue. The AWS managed-observability path
-and the distributed local-demo adoption can progress independently. Each
-workstream has its own internal ordering, and they converge before RDS or
-Kubernetes work begins.
+The next work is not one fully serial queue. The delivered AWS
+managed-observability baseline, distributed local-demo adoption, frontend
+product work, and platform operating-model research each have their own
+internal ordering. They converge before RDS or Kubernetes work begins.
 
 ### Workstream A: AWS Managed Observability
 
@@ -74,28 +76,26 @@ The historical implementation plan lives in
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
-#38 is the current AWS managed-observability slice. Extend the delivered
-ADOT/X-Ray baseline with bounded application and ECS metrics, export them to
-CloudWatch and Amazon Managed Service for Prometheus, then connect Amazon
-Managed Grafana and build the first useful dashboard.
+Status: delivered by PRs
+[#41](https://github.com/patex1987/golden-path-ecs-template/pull/41),
+[#42](https://github.com/patex1987/golden-path-ecs-template/pull/42), and
+[#43](https://github.com/patex1987/golden-path-ecs-template/pull/43).
 
-The focused three-PR implementation plan is
-[`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
-The first slice is delivered by PR
-[#41](https://github.com/patex1987/golden-path-ecs-template/pull/41): the
-existing in-memory service exports curated OTel application metrics to
-CloudWatch through ADOT's `awsemf` exporter. PR
-[#42](https://github.com/patex1987/golden-path-ecs-template/pull/42) delivers the
-second slice: AMP remote write, curated ECS task/container metrics, and enhanced
-Container Insights. The current third slice adds CIDR-restricted Managed
-Grafana, its customer-managed metric-read role, the initial 15-panel dashboard,
-and the final lifecycle runbook.
+The delivered AWS managed-observability baseline extends the ADOT/X-Ray path
+with bounded application and ECS metrics, exports them to CloudWatch and Amazon
+Managed Service for Prometheus, then connects Amazon Managed Grafana with a
+15-panel dashboard and lifecycle runbook.
+
+The focused three-PR implementation plan is preserved as historical context in
+[`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md).
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).
 
 The dependency inside this workstream is now satisfied: ADOT-to-X-Ray traces
-landed in #37. Keep the ECS service in-memory throughout #38.
+landed in #37 and the metrics/Grafana path landed in #38. Keep deeper
+production observability work under #30 rather than expanding the delivered
+#38 baseline.
 
 ### Workstream B: Adopt The Distributed Observability Demo
 
@@ -110,7 +110,10 @@ greenfield implementation and not a blind branch merge. The detailed inventory,
 parallel work packages, and acceptance criteria are in
 [`distributed-observability-demo-platform.md`](distributed-observability-demo-platform.md).
 
-The adoption packages can run in parallel with #38:
+The adoption packages can proceed from the repo-organization decision in
+[ADR 021](../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
+and the delivered
+[#44 decision record](delivered/platform-repository-organization-options.md):
 
 - audit and transplant the reservation MCP and GraphQL read-model changes onto
   current `main`;
@@ -148,12 +151,44 @@ with Workstream B because both may change the frontend and GraphQL contract.
 Reconcile the old issue descriptions and the demo branch before implementing
 anything that appears missing.
 
+### Workstream D: Platform Operating Model Research
+
+These issues turn the next platform direction into explicit decisions before
+multiple services, repositories, auth flows, audit events, and deployment
+promotion gates start drifting independently.
+
+- [ADR 021](../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
+  and the delivered [#44 decision record](delivered/platform-repository-organization-options.md):
+  GitHub organization and repository boundaries for the Agent, MCP servers,
+  recommendation service, reservation platform, and integration demo. Use these
+  before transplanting the distributed demo branches.
+- [#45](https://github.com/patex1987/golden-path-ecs-template/issues/45):
+  research the cheap-to-target AWS landing-zone path and promotion-gated CI/CD
+  model. This owns the larger version of the private deployment workflow from
+  ADR 015, including one-account waves, later multi-account migration,
+  short-lived AWS credentials, test tenants, quality gates, alarms, bake
+  windows, and rollback ownership.
+- [#47](https://github.com/patex1987/golden-path-ecs-template/issues/47):
+  decide the identity provider and authentication strategy before introducing
+  production-like auth, frontend login, service-to-service callers, agent/MCP
+  callers, or subscription authentication.
+- [#46](https://github.com/patex1987/golden-path-ecs-template/issues/46):
+  define the audit/security event contract before multiple services invent
+  incompatible authn/authz/audit log shapes.
+- [#48](https://github.com/patex1987/golden-path-ecs-template/issues/48):
+  replace deploy-time mutable CIDR configuration with a stable
+  customer-managed prefix list for the demo ALB and Managed Grafana access
+  boundary.
+
 ## Convergence Gate Before Persistence
 
 Before starting RDS or Kubernetes work:
 
-- #38 has proved the intended AWS metric path, or an explicit decision has
-  rescheduled the unfinished metrics work;
+- #38 is treated as delivered, and any remaining production dashboard,
+  saturation, alerting, or operator-procedure gaps are explicitly scoped under
+  #30 rather than folded into RDS or Kubernetes work;
+- #44 has decided the repository and ownership model for the distributed demo
+  adoption, or the adoption work remains intentionally local to this repository;
 - the multi-service demo changes have been rebased or selectively transplanted
   onto the current repositories and reviewed;
 - the normal customer UI and explicit local demo UI have distinct boundaries;
@@ -202,13 +237,19 @@ signal conventions.
 - #10: production authorization research and hardening;
 - #11: GraphQL subscriptions after polling and auth behavior are stable;
 - #12: payments exploration;
+- ADR 021 / #44 delivered record: repository and organization model for Agent,
+  MCP, recommendation, and integration-demo work;
+- #45: cheap-to-target multi-account landing-zone and promotion-gated CI/CD
+  research, including the private AWS deployment promotion workflow from
+  [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow);
+- #46: audit logging SDK and security event contract research;
+- #47: identity provider and authentication strategy research;
+- #48: customer-managed prefix list for demo ingress allowlisting;
 - #28, #29, and #32: explicit API read outcomes, catalog read-model ownership,
   and command idempotency;
 - #31: scalable CI, Playwright, and Docker/Postgres e2e strategy;
 - GraphQL client generation and schema-drift checks after the adopted contracts
   are stable;
-- private AWS deployment promotion workflow from
-  [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow);
 - production hardening of the adopted multi-service demo, including OIDC/JWKS,
   service discovery, and non-demo deployment topology.
 
@@ -218,9 +259,11 @@ signal conventions.
 - Continue laptop-driven CDK deployment until the private promotion workflow is
   implemented deliberately.
 - Keep the AWS stack disposable and run `cdk destroy` after experiments.
-- Add one managed telemetry path at a time: X-Ray is now delivered; metrics,
-  AMP, and AMG are next.
-- Keep the ECS service in-memory while implementing #38.
+- Treat X-Ray, CloudWatch metrics, AMP, enhanced Container Insights, and
+  Managed Grafana as the delivered #37/#38 AWS observability baseline.
+- Keep production dashboard, alerting, and saturation expansion under #30.
+- Keep private deployment automation and multi-account promotion design under
+  #45; do not add AWS credentials to public CI as a shortcut.
 - Allow independent repository and AWS workstreams to proceed in parallel, but
   require explicit contract and integration gates before they converge.
 - Adopt the existing multi-service branches before starting RDS or Kubernetes;

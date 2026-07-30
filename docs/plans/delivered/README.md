@@ -25,6 +25,8 @@ current delivery order, start with
 | [`movie-reservation-web-clean-architecture-refactor.md`](movie-reservation-web-clean-architecture-refactor.md) | issue #23 / PR #33 | Frontend clean architecture refactor |
 | [`movie-reservation-web-stabilization-review-findings.md`](movie-reservation-web-stabilization-review-findings.md) | issue #23 / PR #33 | Frontend stabilization review fixes |
 | [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md) | issue #37 / PR #39 | Repo-owned ADOT sidecar and X-Ray trace path |
+| [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md) | issue #38 / PRs #41-#43 | CloudWatch, AMP, ECS metrics, Managed Grafana, and dashboard |
+| [`platform-repository-organization-options.md`](platform-repository-organization-options.md) | issue #44 | Repository organization, service-boundary, contract-gate, and adoption backlog decision |
 | [`hybrid-teaching-mode-skill.md`](hybrid-teaching-mode-skill.md) | repository AI workflow | Learning-first AI implementation contract with engineer-owned practice |
 
 ## Maintenance Rules

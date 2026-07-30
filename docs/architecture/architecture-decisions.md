@@ -667,3 +667,95 @@ For a multi-service platform, do not hand-maintain large copied declaration
 blocks across services. Move toward a small metric manifest or registry that
 generates ADOT `metric_declarations`, dashboard assumptions, alarm inputs, and
 CI validation from one source of truth.
+
+---
+
+## ADR 021: Use Runtime-Boundary Repositories Under The Platform Organization
+
+Status: accepted.
+
+### Decision
+
+Use `movie-reservation-platform-lab` as the canonical open-source GitHub
+organization for the movie reservation platform lab.
+
+Keep `movie-reservation-platform-lab/golden-path-ecs-template` as the
+reservation platform repository for now. It owns the TypeScript reservation
+service, React frontend demonstrator, current ECS/CDK infrastructure, platform
+documentation, local Compose topology, and current integration runbooks.
+
+Use independently deployable runtime boundaries for future service repositories:
+
+- `movie-reservation-agent`: Python Agent orchestration, MCP clients, policies,
+  and Agent tests.
+- `movie-reservation-mcp`: reservation MCP server, GraphQL client, tool schemas,
+  and MCP contract tests.
+- `movie-recommendation-service`: Rust/Axum recommendation API, recommendation
+  domain, health checks, telemetry, and service tests.
+- `movie-recommendation-mcp`: recommendation MCP server, recommendation HTTP
+  client, tool schemas, and MCP contract tests.
+
+Copy `patex1987/axum_tools_random_api` and
+`patex1987/python-agent-with-idp` later as adoption sources into clean
+organization repositories. Do not transfer them as canonical repositories
+because their current repositories are source material, not the accepted
+platform ownership model.
+
+Defer `movie-platform-demo` until the integrated topology can consume pinned
+commits, image tags, or immutable image digests, or until integration tests need
+their own schedule, permissions, release cadence, or shared ownership.
+
+Do not extract CDK into a dedicated infrastructure repository yet. Before a
+future `movie-platform-infra` repository is created, land issue #50 so the CDK
+stack can deploy an explicit service image artifact instead of requiring a
+local service source checkout.
+
+Contracts stay with the systems that publish them. Consumers may pin or copy
+small contract artifacts initially, but do not introduce shared packages until
+multiple consumers create measurable synchronization drift.
+
+Public pull-request CI remains credential-free. Repository-local checks should
+run only the checks that repository can actually execute. Cross-repository
+integration, deployment promotion, AWS credentials, and environment-specific
+configuration belong to explicit follow-up gates and the private promotion
+model from ADR 015.
+
+### Reason
+
+The platform is becoming polyglot: TypeScript reservation service and frontend,
+Python Agent and MCP servers, Rust recommendation API, and infrastructure that
+will eventually deploy all of them. Keeping every runtime in one repository
+would create one large CI, dependency, ownership, and release surface.
+
+Splitting by runtime/deployable boundary gives each service a clear local
+check, release artifact, and ownership model. It also avoids premature shared
+packages: contracts can be producer-owned and tested by direct consumers before
+any package boundary is justified.
+
+Keeping the current reservation platform repository intact for now is still
+intentional. The reservation service, frontend demonstrator, current CDK stack,
+docs, and local topology are still coupled while the platform contract is being
+proved. Moving CDK too early would make the infra repository clone service
+source during synth/deploy, which recreates the same coupling through a less
+visible path. Issue #50 creates the required image artifact boundary first.
+
+This extends ADR 006. ADR 006 said external applications should stay
+independent until the platform contract is clear. ADR 021 records the concrete
+organization, repository map, and staged adoption path now that the distributed
+demo direction is explicit.
+
+### Tradeoff
+
+Several repositories add coordination cost: issues, CI settings, branch
+protections, release notes, and contract compatibility all need deliberate
+ownership. The mitigation is to create repositories only when their adoption
+issue is ready and to keep each first PR behavior-preserving.
+
+The optional integration repository is deferred, so the current platform repo
+continues to own integration topology for a while. That is acceptable until the
+topology consumes pinned revisions or immutable images rather than local source
+paths.
+
+CDK remains colocated with the TypeScript platform repo temporarily. That is a
+known transitional state, not the final boundary. The exit criterion is an
+explicit deployable image artifact contract from issue #50.
