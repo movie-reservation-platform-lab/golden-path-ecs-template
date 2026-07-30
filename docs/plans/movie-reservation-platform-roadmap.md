@@ -86,9 +86,8 @@ with bounded application and ECS metrics, exports them to CloudWatch and Amazon
 Managed Service for Prometheus, then connects Amazon Managed Grafana with a
 15-panel dashboard and lifecycle runbook.
 
-The focused three-PR implementation plan is
-[`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md). It
-remains in `docs/plans/` until archived under `docs/plans/delivered/`.
+The focused three-PR implementation plan is preserved as historical context in
+[`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md).
 
 The production saturation/dashboard follow-up remains tracked by
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).

@@ -5,7 +5,7 @@
 > handoff. Issue #37 is delivered; its historical plan lives in
 > [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
 > The focused #38 implementation record now lives in
-> [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md)
+> [`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md)
 > and is delivered by PRs #41, #42, and #43.
 > Use the still-relevant sections below only as background.
 
@@ -1185,11 +1185,11 @@ small group of PRs unless the actual diff is tiny.
 
 ### Wave 4: CloudWatch, AMP, And Managed Grafana Metrics (#38)
 
-- Status: in progress through
-  [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md).
-  PR #41 delivered the CloudWatch application-metrics path and PR #42 delivered
+- Status: delivered by PRs #41, #42, and #43. Historical implementation record:
+  [`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md).
+  PR #41 delivered the CloudWatch application-metrics path, PR #42 delivered
   AMP remote write, ADOT-collected ECS task/container metrics, and enhanced
-  Container Insights. The current final slice owns Managed Grafana, its first
+  Container Insights, and PR #43 delivered Managed Grafana, its first
   dashboard, and final operations documentation.
 - Change: Extend the proven ADOT collector with CloudWatch metric export, AMP
   workspace/remote write, ECS task metrics, and an AMG workspace or documented
@@ -1504,8 +1504,8 @@ split across issues with different acceptance boundaries.
 
 - For issue #37 history, read
   [`delivered/ecs-adot-xray-tracing.md`](delivered/ecs-adot-xray-tracing.md).
-- For issue #38, use the focused
-  [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md)
-  plan and implement only the next sequential PR package.
+- For issue #38 history, read the focused
+  [`delivered/ecs-adot-managed-metrics-grafana.md`](delivered/ecs-adot-managed-metrics-grafana.md)
+  implementation record.
 - Do not ask an implementation agent to deliver #37, #38, frontend hosting, CI
   telemetry, and failure-injection work from one branch.

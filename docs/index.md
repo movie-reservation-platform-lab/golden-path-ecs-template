@@ -48,7 +48,6 @@ Active documents:
 
 - [movie-reservation-platform-roadmap.md](plans/movie-reservation-platform-roadmap.md) - canonical milestone status and delivery order.
 - [platform-repository-organization-options.md](plans/platform-repository-organization-options.md) - issue #44 options, decision criteria, and small-PR sequence for the Agent, MCP, recommendation, and integration repositories.
-- [ecs-adot-managed-metrics-grafana.md](plans/ecs-adot-managed-metrics-grafana.md) - delivered three-PR issue #38 plan for CloudWatch, AMP, ECS metrics, and Managed Grafana; retained here until archived.
 - [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - non-executable AWS managed-observability umbrella retained as background for issue #38 and later AWS telemetry work.
 - [movie-reservation-frontend-product-requirements.md](plans/movie-reservation-frontend-product-requirements.md) - product and UX acceptance bar for the remaining D8 frontend work.
 - [frontend-follow-up-triage.md](plans/frontend-follow-up-triage.md) - current D8 issue reconciliation and sequencing.
@@ -60,8 +59,8 @@ Active documents:
 Delivered implementation records:
 
 - [delivered/README.md](plans/delivered/README.md) - index of archived
-  implementation plans, including the delivered #37 ADOT/X-Ray tracing plan and
-  the hybrid teaching mode skill.
+  implementation plans, including the delivered #37/#38 AWS observability plans
+  and the hybrid teaching mode skill.
 
 ## `learning/`
 

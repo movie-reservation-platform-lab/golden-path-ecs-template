@@ -1,12 +1,11 @@
 # Implementation Plan: Issue #38 ECS Managed Metrics And Grafana
 
-Status: delivered by PR
-[#41](https://github.com/patex1987/golden-path-ecs-template/pull/41), PR
-[#42](https://github.com/patex1987/golden-path-ecs-template/pull/42), and PR
-[#43](https://github.com/patex1987/golden-path-ecs-template/pull/43). Issue
-[#38](https://github.com/patex1987/golden-path-ecs-template/issues/38) is
-closed. This plan is preserved as implementation history until it is archived
-under `docs/plans/delivered/`.
+> Status: delivered by PR
+> [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41), PR
+> [#42](https://github.com/patex1987/golden-path-ecs-template/pull/42), and PR
+> [#43](https://github.com/patex1987/golden-path-ecs-template/pull/43).
+> Issue [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
+> is closed. Preserved as implementation history.
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
@@ -1358,7 +1357,7 @@ After `cdk destroy`:
 
 ```text
 Implement the next uncompleted pull-request package in
-docs/plans/ecs-adot-managed-metrics-grafana.md.
+docs/plans/delivered/ecs-adot-managed-metrics-grafana.md.
 
 Important sequencing:
 - Implement only one PR package in this branch.
