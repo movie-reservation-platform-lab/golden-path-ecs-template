@@ -110,8 +110,10 @@ greenfield implementation and not a blind branch merge. The detailed inventory,
 parallel work packages, and acceptance criteria are in
 [`distributed-observability-demo-platform.md`](distributed-observability-demo-platform.md).
 
-The adoption packages can proceed after the repo-organization decision in
-[#44](https://github.com/patex1987/golden-path-ecs-template/issues/44):
+The adoption packages can proceed from the repo-organization decision in
+[ADR 021](../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
+and the delivered
+[#44 decision record](delivered/platform-repository-organization-options.md):
 
 - audit and transplant the reservation MCP and GraphQL read-model changes onto
   current `main`;
@@ -155,10 +157,11 @@ These issues turn the next platform direction into explicit decisions before
 multiple services, repositories, auth flows, audit events, and deployment
 promotion gates start drifting independently.
 
-- [#44](https://github.com/patex1987/golden-path-ecs-template/issues/44):
-  decide GitHub organization and repository boundaries for the Agent, MCP
-  servers, recommendation service, reservation platform, and integration demo.
-  This should happen before transplanting the distributed demo branches.
+- [ADR 021](../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
+  and the delivered [#44 decision record](delivered/platform-repository-organization-options.md):
+  GitHub organization and repository boundaries for the Agent, MCP servers,
+  recommendation service, reservation platform, and integration demo. Use these
+  before transplanting the distributed demo branches.
 - [#45](https://github.com/patex1987/golden-path-ecs-template/issues/45):
   research the cheap-to-target AWS landing-zone path and promotion-gated CI/CD
   model. This owns the larger version of the private deployment workflow from
@@ -234,8 +237,8 @@ signal conventions.
 - #10: production authorization research and hardening;
 - #11: GraphQL subscriptions after polling and auth behavior are stable;
 - #12: payments exploration;
-- #44: repository and organization model for Agent, MCP, recommendation, and
-  integration-demo work;
+- ADR 021 / #44 delivered record: repository and organization model for Agent,
+  MCP, recommendation, and integration-demo work;
 - #45: cheap-to-target multi-account landing-zone and promotion-gated CI/CD
   research, including the private AWS deployment promotion workflow from
   [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow);

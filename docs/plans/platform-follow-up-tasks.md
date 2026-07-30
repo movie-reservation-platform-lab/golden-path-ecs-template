@@ -12,12 +12,13 @@ These issues own cross-repository, deployment, identity, and audit decisions
 that should be settled before the platform grows beyond the reservation
 service, frontend, and ECS demo stack.
 
-- Issue [#44](https://github.com/patex1987/golden-path-ecs-template/issues/44)
-  owns the GitHub organization and repository-boundary decision for the
+- [ADR 021](../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
+  and the delivered [#44 decision record](delivered/platform-repository-organization-options.md)
+  own the GitHub organization and repository-boundary decision for the
   reservation platform/template, Python Agent, MCP servers, Rust recommendation
-  service, and any integration-demo repository. Use it before transplanting the
-  existing distributed-demo branches so runtime boundaries and CI ownership are
-  explicit.
+  service, and any integration-demo repository. Use them before transplanting
+  the existing distributed-demo branches so runtime boundaries and CI ownership
+  are explicit.
 - Issue [#45](https://github.com/patex1987/golden-path-ecs-template/issues/45)
   owns the cheap-to-target AWS landing-zone and promotion-gated CI/CD research.
   It should separate the current one-account learning path from later
