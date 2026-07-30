@@ -1,6 +1,6 @@
 # Service Follow-Up Tasks
 
-Last reviewed: 2026-07-17
+Last reviewed: 2026-07-30
 
 This file contains service/domain/API work that remains after the delivered D4
 through D7 milestones. GitHub issues are the execution source of truth. Avoid
@@ -56,9 +56,21 @@ dead-letter/manual recovery, and idempotent processing.
 ### Authorization And Subscriptions
 
 - [#10](https://github.com/patex1987/golden-path-ecs-template/issues/10)
-  owns production OIDC/JWKS validation and authorization hardening.
+  owns authorization research and hardening: policy model, app-local versus
+  externalized authorization, migration path, and one realistic authorization
+  prototype.
+- [#47](https://github.com/patex1987/golden-path-ecs-template/issues/47)
+  owns identity provider and authentication strategy: OIDC/OAuth2 flows,
+  issuer/audience/JWKS validation, token and claim contract, local development
+  fallback, frontend login, service-to-service callers, and Agent/MCP callers.
+- [#46](https://github.com/patex1987/golden-path-ecs-template/issues/46)
+  owns the audit/security event contract for authentication failures,
+  authorization decisions, policy errors, admin/config changes, and future
+  Agent/MCP tool invocation security events.
 - [#11](https://github.com/patex1987/golden-path-ecs-template/issues/11)
-  owns GraphQL subscriptions and the separate WebSocket authentication path.
+  owns GraphQL subscriptions and the separate WebSocket authentication path
+  after the relevant #47 authentication and #10 authorization decisions are
+  explicit.
 
 Do not assume the current HTTP bearer-token middleware authenticates WebSocket
 connection initialization.
@@ -81,8 +93,8 @@ connection initialization.
 - Keep generic bearer/JWT mechanics separate from movie-reservation claim
   mapping. Extract a shared auth package only when a second service proves the
   shared contract.
-- Decide role versus scope semantics and provider membership modeling as part of
-  #10, not as isolated middleware conditionals.
+- Decide token claim, role, scope, and provider membership semantics across
+  #47 and #10, not as isolated middleware conditionals.
 - Keep authorization decisions in application policy, persistence filtering in
   repositories, and GraphQL result/error mapping at the presentation boundary.
 - Never log raw authorization headers, tokens, cookies, or GraphQL variables.

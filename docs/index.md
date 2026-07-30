@@ -47,14 +47,15 @@ Plan lifecycle:
 Active documents:
 
 - [movie-reservation-platform-roadmap.md](plans/movie-reservation-platform-roadmap.md) - canonical milestone status and delivery order.
-- [ecs-adot-managed-metrics-grafana.md](plans/ecs-adot-managed-metrics-grafana.md) - implementation-ready three-PR plan for issue #38 CloudWatch, AMP, ECS metrics, and Managed Grafana.
+- [platform-repository-organization-options.md](plans/platform-repository-organization-options.md) - issue #44 options, decision criteria, and small-PR sequence for the Agent, MCP, recommendation, and integration repositories.
+- [ecs-adot-managed-metrics-grafana.md](plans/ecs-adot-managed-metrics-grafana.md) - delivered three-PR issue #38 plan for CloudWatch, AMP, ECS metrics, and Managed Grafana; retained here until archived.
 - [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - non-executable AWS managed-observability umbrella retained as background for issue #38 and later AWS telemetry work.
 - [movie-reservation-frontend-product-requirements.md](plans/movie-reservation-frontend-product-requirements.md) - product and UX acceptance bar for the remaining D8 frontend work.
 - [frontend-follow-up-triage.md](plans/frontend-follow-up-triage.md) - current D8 issue reconciliation and sequencing.
 - [production-observability-dashboard.md](plans/production-observability-dashboard.md) - issue #30 dashboard, alerting, saturation, and operational follow-up.
 - [distributed-observability-demo-platform.md](plans/distributed-observability-demo-platform.md) - adoption and reconciliation plan for the implemented multi-repository demo branches.
 - [service-follow-up-tasks.md](plans/service-follow-up-tasks.md) - issue-backed and unscheduled service/domain/API backlog.
-- [platform-follow-up-tasks.md](plans/platform-follow-up-tasks.md) - CI/CD, private deployment, and platform tooling backlog.
+- [platform-follow-up-tasks.md](plans/platform-follow-up-tasks.md) - CI/CD, private deployment, operating-model, identity, audit, and platform tooling backlog.
 
 Delivered implementation records:
 

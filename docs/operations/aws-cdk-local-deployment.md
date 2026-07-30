@@ -58,10 +58,10 @@ the deployed resource lifecycle.
 ### 1. Select the account and Region
 
 In this runbook, **the account** means the personal AWS account you already
-have. You do not need to create another account. The final #38 slice does,
-however, require that account to become the AWS Organizations management
-account so it can host an organization instance of IAM Identity Center for
-Managed Grafana login.
+have. You do not need to create another account. The delivered Managed Grafana
+baseline does, however, require that account to become the AWS Organizations
+management account so it can host an organization instance of IAM Identity
+Center for Managed Grafana login.
 
 Sign in to the existing account and record its 12-digit account ID from the
 account menu in the upper-right corner of the AWS console. This account ID will
@@ -354,12 +354,12 @@ npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
 
-For the initial deployment, expect an entirely new stack. For the final #38
-slice on top of PR #42, expect one Managed Grafana workspace, one single-entry
-IPv4 managed prefix list containing `ALLOWED_INGRESS_CIDR`, one customer-managed
-Grafana data-access role, and two Grafana outputs. The existing AMP, endpoint,
-Container Insights, task-role, and task-definition resources should otherwise
-remain stable.
+For the initial deployment, expect an entirely new stack. For the delivered
+Managed Grafana baseline, expect one Managed Grafana workspace, one
+single-entry IPv4 managed prefix list containing `ALLOWED_INGRESS_CIDR`, one
+customer-managed Grafana data-access role, and two Grafana outputs. The AMP,
+endpoint, Container Insights, task-role, and task-definition resources should
+otherwise remain stable across normal updates.
 
 Stop if the diff targets the wrong account/Region, opens the prefix list beyond
 the intended `/32`, adds NAT or a Grafana VPC endpoint, configures Grafana

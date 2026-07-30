@@ -1,11 +1,16 @@
 # Implementation Plan: Issue #38 ECS Managed Metrics And Grafana
 
-Status: in progress (PR 1 delivered by PR #41; PR 2 delivered by PR #42; PR 3
-implementation in progress)
+Status: delivered by PR
+[#41](https://github.com/patex1987/golden-path-ecs-template/pull/41), PR
+[#42](https://github.com/patex1987/golden-path-ecs-template/pull/42), and PR
+[#43](https://github.com/patex1987/golden-path-ecs-template/pull/43). Issue
+[#38](https://github.com/patex1987/golden-path-ecs-template/issues/38) is
+closed. This plan is preserved as implementation history until it is archived
+under `docs/plans/delivered/`.
 
 Issue: [#38](https://github.com/patex1987/golden-path-ecs-template/issues/38)
 
-Last reviewed: 2026-07-28
+Last reviewed: 2026-07-30
 
 ## 1. Summary
 
@@ -35,18 +40,18 @@ Amazon Managed Grafana
   -> CloudWatch for ALB and Container Insights metrics
 ```
 
-The work is intentionally split into three sequential pull requests against
+The work was intentionally split into three sequential pull requests against
 `main`:
 
 1. CloudWatch application metrics — delivered by PR
    [#41](https://github.com/patex1987/golden-path-ecs-template/pull/41).
 2. AMP plus ECS task/container metrics — delivered by PR
    [#42](https://github.com/patex1987/golden-path-ecs-template/pull/42).
-3. Amazon Managed Grafana, the dashboard, and the complete runbook — current
-   slice.
+3. Amazon Managed Grafana, the dashboard, and the complete runbook — delivered
+   by PR [#43](https://github.com/patex1987/golden-path-ecs-template/pull/43).
 
-Each pull request must remain independently deployable and reviewable. PR #41
-referenced #38; PR 2 should also reference #38; the third closes it.
+Each pull request remained independently deployable and reviewable. PR #43
+closed #38.
 
 The implementation stays in the existing disposable `GoldenPathDemoStack` in
 `eu-central-1`. It does not change domain or application-layer code, add metric

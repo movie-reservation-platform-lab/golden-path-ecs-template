@@ -2,8 +2,8 @@
 
 Status: open under
 [#30](https://github.com/patex1987/golden-path-ecs-template/issues/30).
-Issue #38 must first establish CloudWatch/AMP/Managed Grafana metric export for
-the ECS environment; this plan then expands the initial dashboard and missing
+Issue #38 established CloudWatch/AMP/Managed Grafana metric export for the ECS
+environment; this plan expands the delivered initial dashboard and missing
 saturation signals.
 
 Do not duplicate #38's initial Traffic/Errors/Latency/Saturation dashboard in
