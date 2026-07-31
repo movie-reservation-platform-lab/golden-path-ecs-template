@@ -46,6 +46,7 @@ Plan lifecycle:
 
 Active documents:
 
+- [cdk-application-image-artifact-contract.md](plans/cdk-application-image-artifact-contract.md) - issue #50 plan for a backward-compatible local/private-ECR application image contract before future CDK repository extraction.
 - [movie-reservation-platform-roadmap.md](plans/movie-reservation-platform-roadmap.md) - canonical milestone status and delivery order.
 - [ecs-adot-managed-observability.md](plans/ecs-adot-managed-observability.md) - non-executable AWS managed-observability umbrella retained as background for issue #38 and later AWS telemetry work.
 - [movie-reservation-frontend-product-requirements.md](plans/movie-reservation-frontend-product-requirements.md) - product and UX acceptance bar for the remaining D8 frontend work.
