@@ -59,7 +59,7 @@ flowchart TB
       alb -->|"HTTP 3000<br/>application + health checks"| app
     end
 
-    ecr["Amazon ECR<br/>app + ADOT CDK assets"]
+    ecr["Amazon ECR<br/>app: imported digest or CDK asset<br/>ADOT: CDK asset"]
     s3["Amazon S3<br/>ECR image layers"]
     cloudwatch["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics"]
     xray["AWS X-Ray<br/>trace segments"]
@@ -117,7 +117,7 @@ flowchart TB
 
     subgraph regionalServices["Regional AWS services"]
       direction LR
-      ecr["Amazon ECR<br/>CDK asset repository<br/>app + ADOT images"]
+      ecr["Amazon ECR<br/>imported app repository or CDK asset repository<br/>app + ADOT images"]
       s3["Amazon S3<br/>ECR image layers"]
       cloudwatch["CloudWatch<br/>app + ADOT + EMF + performance log groups<br/>custom application + enhanced ECS metrics<br/>7-day log retention"]
       xray["AWS X-Ray<br/>trace segments"]
@@ -258,6 +258,41 @@ flowchart TB
   class ssmEndpoint optional
 ```
 
+## Application Image Deployment Contract
+
+`GoldenPathDemoStack` consumes one resolved application image and one service
+version. Everything after that boundary—the task definition, container name and
+port, health check, environment, logging, telemetry, ALB target, and deployment
+settings—is identical in both modes.
+
+| Mode | Application image source | `SERVICE_VERSION` source | Repository lifecycle |
+| --- | --- | --- | --- |
+| `local-docker-asset` (default) | CDK hashes the repository Docker context and models an `AppImage` Docker asset | `movie-reservation-service/package.json` | CDK publishes the app asset to its bootstrap ECR repository during deployment |
+| `ecr-image` | CDK imports an existing private ECR repository and selects an exact `sha256` digest | Required opaque `applicationServiceVersion` context | Platform foundation owns the repository; the workload stack neither creates nor deletes it |
+
+ECR mode requires both context values:
+
+```text
+applicationImageReference=<account>.dkr.ecr.<region>.amazonaws.com/<repository>@sha256:<64-hex-digest>
+applicationServiceVersion=<opaque-release-identifier>
+```
+
+The registry account and Region must exactly match the concrete CDK deployment
+target. Validation is offline: synthesis checks the contract but does not call
+ECR or prove the repository or digest exists. The imported repository therefore
+does not synthesize an `AWS::ECR::Repository` resource.
+
+`ecs.ContainerImage.fromEcrRepository` grants pull access to the ECS task
+**execution role**, which is the AWS identity used by the ECS agent before the
+containers start. The application **task role** receives no ECR permissions;
+that role is reserved for AWS API calls made by the running app and ADOT
+containers. In both modes, the repository-owned ADOT image remains a separate
+CDK Docker asset built from `ecs-infra/adot-collector`.
+
+The durable publication, promotion, repository-ownership, and teardown decision
+is recorded in
+[ADR 022](architecture-decisions.md#adr-022-deploy-immutable-service-artifacts-by-digest).
+
 ## Main Boundaries
 
 - **Public ingress:** the Internet Gateway and public route make the ALB
@@ -283,7 +318,9 @@ flowchart TB
   AMP workspace data plane, regional STS, and optional SSM Messages use
   interface endpoint ENIs. ECR image layers use the S3 gateway endpoint
   attached only to the selected workload subnet's route table. There is no AMP
-  control-plane endpoint because the running task only writes metrics.
+  control-plane endpoint because the running task only writes metrics. This
+  path is the same whether the app image came from the CDK bootstrap repository
+  or an imported same-account, same-Region ECR repository.
 - **ECS control resources:** the cluster, service, task definition, and IAM roles
   are regional resources. The running Fargate task is the part placed in the
   selected VPC subnet.

@@ -1,10 +1,12 @@
 # Implementation Plan: CDK Application Image Artifact Contract
 
-> Status: proposed implementation plan for issue
-> [#50](https://github.com/movie-reservation-platform-lab/golden-path-ecs-template/issues/50).
-> This planning branch does not change synthesized infrastructure.
+> Status: delivered for issue
+> [#50](https://github.com/movie-reservation-platform-lab/golden-path-ecs-template/issues/50)
+> through planning PR #52, extraction PR #53, ECR-contract PR #54, and the
+> final documentation PR containing this record. Preserved as implementation
+> history.
 
-Last reviewed: 2026-07-31
+Last reviewed: 2026-08-04
 
 ## 1. Summary
 
@@ -76,11 +78,11 @@ publishing pipeline, private promotion workflow, or real deployment proof.
 
 ### CDK entrypoint and configuration
 
-[`ecs-infra/bin/infra.ts`](../../ecs-infra/bin/infra.ts) reads CDK context,
+[`ecs-infra/bin/infra.ts`](../../../ecs-infra/bin/infra.ts) reads CDK context,
 resolves one `PlatformConfig`, and creates `GoldenPathDemoStack`. Its stack
 environment comes from `CDK_DEFAULT_ACCOUNT` and `CDK_DEFAULT_REGION`.
 
-[`ecs-infra/lib/config/platform-config.ts`](../../ecs-infra/lib/config/platform-config.ts)
+[`ecs-infra/lib/config/platform-config.ts`](../../../ecs-infra/lib/config/platform-config.ts)
 is the existing untrusted-input boundary:
 
 - `PlatformConfigContext` accepts `unknown` values from CDK context;
@@ -93,7 +95,7 @@ stack.
 
 ### Current application image coupling
 
-[`ecs-infra/lib/infra-stack.ts`](../../ecs-infra/lib/infra-stack.ts) currently:
+[`ecs-infra/lib/infra-stack.ts`](../../../ecs-infra/lib/infra-stack.ts) currently:
 
 1. computes the monorepo root;
 2. creates the `AppImage` `DockerImageAsset`;
@@ -132,7 +134,7 @@ would require outbound internet connectivity that the task does not have.
 
 ### Current tests and CI
 
-[`ecs-infra/test/infra.test.ts`](../../ecs-infra/test/infra.test.ts) uses Jest
+[`ecs-infra/test/infra.test.ts`](../../../ecs-infra/test/infra.test.ts) uses Jest
 and CDK assertions through a synthesis helper. It already covers the config
 boundary and behaviorally important CloudFormation properties.
 
@@ -142,9 +144,9 @@ single synthesis path.
 
 ### Existing architecture decisions
 
-- [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow)
+- [ADR 015](../../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow)
   keeps AWS credentials and deployment authority out of public CI.
-- [ADR 021](../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
+- [ADR 021](../../architecture/architecture-decisions.md#adr-021-use-runtime-boundary-repositories-under-the-platform-organization)
   keeps CDK colocated temporarily and names issue #50 as the prerequisite for a
   future infrastructure-repository extraction.
 
@@ -877,25 +879,25 @@ Rollback remains simple:
 
 ## 16. Done Criteria
 
-- [ ] Local image construction is isolated in `application-image.ts` without
+- [x] Local image construction is isolated in `application-image.ts` without
       behavior change.
-- [ ] Omitting both external values preserves the current local
+- [x] Omitting both external values preserves the current local
       `DockerImageAsset` path and package-derived version.
-- [ ] A valid same-account, same-Region ECR digest and opaque service version
+- [x] A valid same-account, same-Region ECR digest and opaque service version
       synthesize without reservation service source or package metadata.
-- [ ] Partial, malformed, mutable, unresolved-target, or mismatched-target
+- [x] Partial, malformed, mutable, unresolved-target, or mismatched-target
       configuration fails before deployment.
-- [ ] ECR mode imports but does not provision the repository.
-- [ ] The task execution role receives repository pull permissions and the task
+- [x] ECR mode imports but does not provision the repository.
+- [x] The task execution role receives repository pull permissions and the task
       role does not.
-- [ ] Tests cover both image variants and important runtime regressions.
-- [ ] Public CI synthesizes both modes without AWS or registry credentials.
-- [ ] No live AWS deployment is required to merge #50.
-- [ ] ADR, ECS architecture, local deployment runbook, and CI documentation
+- [x] Tests cover both image variants and important runtime regressions.
+- [x] Public CI synthesizes both modes without AWS or registry credentials.
+- [x] No live AWS deployment is required to merge #50.
+- [x] ADR, ECS architecture, local deployment runbook, and CI documentation
       accurately describe the contract.
-- [ ] No service API, ECS runtime, observability, or networking behavior
+- [x] No service API, ECS runtime, observability, or networking behavior
       changes.
-- [ ] The plan is archived and #50 closes only in the final documentation PR.
+- [x] The plan is archived and #50 closes only in the final documentation PR.
 
 ## 17. Review Checklist
 

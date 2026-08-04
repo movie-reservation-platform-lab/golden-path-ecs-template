@@ -41,18 +41,26 @@ npm -w movie-reservation-service run test:integration
 npm -w movie-reservation-service test
 ```
 
-The infrastructure workspace also validates the pinned collector artifact and
-the credential-free parts of the X-Ray smoke tool:
+The infrastructure workspace also validates the pinned collector artifact,
+credential-free smoke tooling, dashboard contract, and both application-image
+synthesis paths:
 
 ```sh
 npm -w ecs-infra run validate:adot-image
 npm -w ecs-infra run validate:xray-smoke
+npm -w ecs-infra run validate:managed-metrics-smoke
+npm -w ecs-infra run validate:grafana-dashboard
+npm -w ecs-infra run synth:local-contract
+npm -w ecs-infra run synth:ecr-contract
 ```
 
 The collector command builds and starts the repository-owned image, then runs
 its bundled `/healthcheck`. It supplies no AWS credentials and exports no test
 trace. The smoke validation performs shell/static helper checks; Jest uses fake
 `aws` and `curl` executables to cover structured success and failure reports.
+The two synth commands prove that the default local Docker asset and the
+digest-pinned ECR application-image contract both produce a cloud assembly
+without obtaining AWS credentials.
 
 ## Runtime Version
 
@@ -87,21 +95,32 @@ The workflow at `.github/workflows/ci.yml` exposes six required CI-1 jobs:
 - `service-integration-tests`: service thin integration/API contract tests.
 - `service-build`: service TypeScript build.
 - `infra`: CDK workspace build, Jest tests, pinned ADOT image/config/health
-  validation, X-Ray smoke-tool validation, and `cdk synth`.
+  validation, smoke-tool and dashboard validation, and credential-free
+  synthesis of both application-image modes.
 - `web`: frontend TypeScript typecheck, Vitest tests, and Vite production build.
 
-As a temporary CI-only bridge, the `infra` job synthesizes with
+As a temporary CI-only bridge, both synth paths use
 `allowedIngressCidr=203.0.113.10/32`. `203.0.113.0/24` is reserved for
-documentation, so this gives credential-free CI a deterministic,
-non-production configuration without allowing public internet ingress. It is
-not the final environment-configuration design and must not be reused as a
-deployment default.
+documentation, so this is deterministic non-production configuration rather
+than a deployment default.
+
+The ECR contract synth additionally uses account `111111111111`, Region
+`eu-central-1`, repository `ci-placeholder`, an all-zero SHA-256 digest, and
+service version `ci-contract-test`. Those values and the matching static
+availability-zone context in `ecs-infra/cdk.json` are intentionally fake.
+`--no-lookups` turns an unexpected AWS context lookup into a CI failure. The
+command proves only offline parsing, target matching, repository import, IAM
+synthesis, and task-definition wiring; it does not authenticate to ECR, query
+the repository, or pull the placeholder image. The target artifact-promotion
+model is recorded in
+[ADR 022](../architecture/architecture-decisions.md#adr-022-deploy-immutable-service-artifacts-by-digest).
 
 The public workflow must remain credential-free: it must not receive AWS access
 keys, an AWS OIDC deploy role, account-specific deployment configuration, or
-permission to publish CDK assets. Pulling the public pinned ADOT base image and
-building a local Docker image does not grant AWS deployment authority. Real
-`cdk diff`, `deploy`, trace export, and `destroy`
+permission to publish CDK assets. Pulling the public pinned ADOT base image,
+building local validation images, and parsing a fake ECR reference do not grant
+AWS deployment authority. Real `cdk diff`, `deploy`, artifact mirroring, trace
+export, and `destroy`
 operations belong to the private promotion workflow described by
 [ADR 015](../architecture/architecture-decisions.md#adr-015-keep-public-ci-credential-free-and-deploy-from-a-private-promotion-workflow).
 That workflow will check out an approved public commit SHA, assume a short-lived
@@ -126,7 +145,8 @@ GitHub may require the workflow to run once before these status checks are avail
 
 ## Deferred Work
 
-CI-1 does not include deployment, Docker image publishing, real X-Ray export,
+CI-1 does not include deployment, candidate image publishing, private ECR
+mirroring, Docker image publication to AWS, real X-Ray export,
 dependency audit gates, action SHA pinning, custom caches, artifact uploads, test reports,
 special PR annotations, Node matrices, Docker/Testcontainers e2e checks,
 Playwright browser checks, affected/path-filtered workspace selection, or

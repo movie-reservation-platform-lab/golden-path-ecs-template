@@ -45,7 +45,7 @@ instead of changing their existing `CDKToolkit` stack.
 | ----------- | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `synth`     | Laptop                             | Executes the TypeScript CDK app and writes a CloudFormation template and asset metadata under `ecs-infra/cdk.out/`. It changes no AWS resources.          |
 | `bootstrap` | Laptop CLI plus AWS CloudFormation | Once per account/Region, deploys the `CDKToolkit` stack containing an S3 asset bucket, ECR asset repository, IAM roles, and an SSM version parameter.     |
-| `deploy`    | Laptop CLI plus AWS CloudFormation | Builds the app and ADOT Docker images locally, publishes them to the bootstrap ECR repository, and asks CloudFormation to create or update `GoldenPathDemoStack`. |
+| `deploy`    | Laptop CLI plus AWS CloudFormation | In local mode, builds and publishes the app and ADOT assets. In ECR mode, consumes an existing digest-pinned app image and builds only ADOT. Then CloudFormation creates or updates `GoldenPathDemoStack`. |
 | `destroy`   | Laptop CLI plus AWS CloudFormation | Deletes resources owned by `GoldenPathDemoStack`. It does not delete the separate `CDKToolkit` stack or all assets stored by that stack.                  |
 
 The CDK code in
@@ -182,9 +182,12 @@ awscurl --help
 npm -w ecs-infra run cdk -- --version
 ```
 
-`deploy` requires the Docker daemon because
-[`DockerImageAsset`](../../ecs-infra/lib/infra-stack.ts) builds the NestJS app
-and repository-owned ADOT images on the laptop before publishing them to ECR.
+`deploy` requires the Docker daemon in both application-image modes. Local mode
+builds the NestJS app through
+[`resolveApplicationImage`](../../ecs-infra/lib/application-image.ts), while
+[`GoldenPathDemoStack`](../../ecs-infra/lib/infra-stack.ts) always builds the
+repository-owned ADOT image before CDK publishes its assets to ECR. ECR
+application mode removes the local app build, not the ADOT asset build.
 
 ### Configure a browser-login profile
 
@@ -246,6 +249,56 @@ Application metrics export every 30 seconds by default. The optional
 command in a session when testing a nondefault cadence. The value becomes
 milliseconds for the Node.js OTel SDK and an OTel duration for ADOT. The
 commands below intentionally use the default.
+
+## Select the application image mode
+
+The stack has one application-image boundary with two modes. Select one mode
+for a deployment session and use the same context on `synth`, `diff`, `deploy`,
+and `destroy`.
+
+### Local Docker asset mode (default)
+
+Omit both `applicationImageReference` and `applicationServiceVersion`. CDK reads
+the local `movie-reservation-service` checkout, derives `SERVICE_VERSION` from
+its package metadata, and publishes the resulting app asset through the
+`CDKToolkit` bootstrap repository during deployment.
+
+This remains the main walkthrough below because it works before a service image
+publishing and mirroring pipeline exists.
+
+### Existing private ECR image mode
+
+Use this mode only after the exact application image already exists in a
+private ECR repository in `AWS_ACCOUNT_ID` and `AWS_REGION`. Set the repository,
+digest, reference, and human-readable release metadata:
+
+```bash
+export APPLICATION_REPOSITORY_NAME=movie-reservation-service
+export APPLICATION_IMAGE_DIGEST='sha256:replace-with-the-real-64-hex-digest'
+export APPLICATION_SERVICE_VERSION='replace-with-the-release-identifier'
+export APPLICATION_IMAGE_REFERENCE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${APPLICATION_REPOSITORY_NAME}@${APPLICATION_IMAGE_DIGEST}"
+```
+
+Replace both placeholder values before continuing. The service version is
+opaque metadata exposed as `SERVICE_VERSION` in logs and telemetry; the digest
+is the canonical deployment identity. Tags such as `:latest` or `:1.2.3` are
+not accepted.
+
+Verify the immutable artifact before asking CloudFormation to start a task:
+
+```bash
+aws ecr describe-images \
+  --repository-name "$APPLICATION_REPOSITORY_NAME" \
+  --image-ids imageDigest="$APPLICATION_IMAGE_DIGEST" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION" \
+  --query 'imageDetails[0].{Digest:imageDigest,Tags:imageTags,PushedAt:imagePushedAt}'
+```
+
+CDK intentionally performs no ECR query during synthesis. This explicit check
+is what distinguishes “the reference is valid” from “the referenced bytes are
+available.” The current contract accepts only a standard private ECR URI whose
+account and Region exactly match the stack deployment target.
 
 ## Bootstrap the account and Region
 
@@ -318,6 +371,18 @@ npm -w ecs-infra run validate:managed-metrics-smoke
 npm -w ecs-infra run validate:grafana-dashboard
 ```
 
+Reproduce the two credential-free public CI synth contracts:
+
+```bash
+npm -w ecs-infra run synth:local-contract
+npm -w ecs-infra run synth:ecr-contract
+```
+
+The ECR contract command uses an intentionally fake account, repository,
+all-zero digest, and static availability-zone context with `--no-lookups`. It
+proves offline validation and CloudFormation generation only; never deploy its
+placeholder values.
+
 List and synthesize the stack:
 
 ```bash
@@ -328,6 +393,17 @@ npm -w ecs-infra run cdk -- list \
 npm -w ecs-infra run cdk -- synth GoldenPathDemoStack \
   --profile "$AWS_PROFILE" \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
+```
+
+For a real existing ECR application image, synthesize the same stack with both
+artifact context values:
+
+```bash
+npm -w ecs-infra run cdk -- synth GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR" \
+  -c applicationImageReference="$APPLICATION_IMAGE_REFERENCE" \
+  -c applicationServiceVersion="$APPLICATION_SERVICE_VERSION"
 ```
 
 Expected stack ID:
@@ -344,7 +420,10 @@ ecs-infra/cdk.out/GoldenPathDemoStack.template.json
 
 Synthesis changes no AWS resources. Review the template when learning which L2
 constructs expand into VPC, subnet, route, security group, endpoint, ECS, IAM,
-load balancer, and log resources.
+load balancer, and log resources. In ECR mode, the template references the exact
+application digest and grants repository pull actions to the ECS execution
+role; it contains no `AWS::ECR::Repository` for the imported application
+repository.
 
 ## Review the deployment diff
 
@@ -353,6 +432,22 @@ npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
   --profile "$AWS_PROFILE" \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
+
+For ECR application mode, keep the selected digest and version in the diff:
+
+```bash
+npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR" \
+  -c applicationImageReference="$APPLICATION_IMAGE_REFERENCE" \
+  -c applicationServiceVersion="$APPLICATION_SERVICE_VERSION"
+```
+
+An application-only promotion should primarily change the app container image
+and `SERVICE_VERSION` in the task definition. Stop if it unexpectedly creates
+or replaces an ECR repository, changes the task role, or changes unrelated
+networking and observability resources. Repository pull permissions belong to
+the ECS execution role, not the application task role.
 
 For the initial deployment, expect an entirely new stack. For the delivered
 Managed Grafana baseline, expect one Managed Grafana workspace, one
@@ -385,15 +480,28 @@ npm -w ecs-infra run cdk -- deploy GoldenPathDemoStack \
   --require-approval broadening
 ```
 
+For ECR application mode, deploy the exact artifact reviewed in the diff:
+
+```bash
+npm -w ecs-infra run cdk -- deploy GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR" \
+  -c applicationImageReference="$APPLICATION_IMAGE_REFERENCE" \
+  -c applicationServiceVersion="$APPLICATION_SERVICE_VERSION" \
+  --require-approval broadening
+```
+
 Read the approval prompt and CloudFormation changes before confirming. Do not
 use `--require-approval never` for an interactive laptop deployment.
 
 During deployment, CDK:
 
 1. synthesizes the stack again;
-2. builds the repository's app and pinned ADOT Docker images;
-3. assumes the bootstrap image-publishing role and pushes both assets to the
-   bootstrap ECR repository;
+2. in local mode, builds the repository app and pinned ADOT images and publishes
+   both through the bootstrap asset path;
+3. in ECR mode, imports the pre-existing application repository and digest,
+   builds and publishes only the ADOT asset, and does not copy or rebuild the
+   application image;
 4. submits the CloudFormation change set;
 5. waits while CloudFormation creates the network, endpoints, ECS service, ALB,
    and supporting resources.
@@ -711,6 +819,52 @@ npm -w ecs-infra run cdk -- deploy GoldenPathDemoStack \
 CDK uses the Docker asset hash, so an unchanged image asset does not need to be
 rebuilt and republished.
 
+For ECR application mode, change the selected digest and matching service
+version, verify the image with `aws ecr describe-images`, and run the ECR-mode
+`diff` and `deploy` commands above. Changing only the selected application
+digest creates a new task-definition revision without rebuilding the service or
+changing the imported repository lifecycle.
+
+## Roll back an application image
+
+The ECS deployment circuit breaker automatically rolls back a task revision
+that cannot stabilize. An image that becomes healthy but has a functional
+regression needs an explicit operator rollback.
+
+For ECR mode, restore the previous known-good digest and its matching service
+version, confirm that the retained digest still exists, review `cdk diff`, and
+deploy:
+
+```bash
+export APPLICATION_IMAGE_DIGEST='sha256:replace-with-the-previous-64-hex-digest'
+export APPLICATION_SERVICE_VERSION='replace-with-the-previous-release-identifier'
+export APPLICATION_IMAGE_REFERENCE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${APPLICATION_REPOSITORY_NAME}@${APPLICATION_IMAGE_DIGEST}"
+
+aws ecr describe-images \
+  --repository-name "$APPLICATION_REPOSITORY_NAME" \
+  --image-ids imageDigest="$APPLICATION_IMAGE_DIGEST" \
+  --profile "$AWS_PROFILE" \
+  --region "$AWS_REGION"
+
+npm -w ecs-infra run cdk -- diff GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR" \
+  -c applicationImageReference="$APPLICATION_IMAGE_REFERENCE" \
+  -c applicationServiceVersion="$APPLICATION_SERVICE_VERSION"
+
+npm -w ecs-infra run cdk -- deploy GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR" \
+  -c applicationImageReference="$APPLICATION_IMAGE_REFERENCE" \
+  -c applicationServiceVersion="$APPLICATION_SERVICE_VERSION" \
+  --require-approval broadening
+```
+
+Do not rebuild a rollback image from an old tag: selecting the retained digest
+is what restores the reviewed bytes. For local mode, use a known-good repository
+revision, rerun the local validation and diff, and deploy the resulting asset.
+The same service-version metadata should identify that revision.
+
 ## Destroy the application stack
 
 Destroy the stack as soon as the experiment is finished. First re-authenticate
@@ -742,9 +896,26 @@ npm -w ecs-infra run cdk -- destroy GoldenPathDemoStack \
   -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR"
 ```
 
+When operating in ECR mode—or from a future infrastructure checkout that does
+not contain the service source—keep the complete image contract while CDK
+starts the app to select the stack:
+
+```bash
+npm -w ecs-infra run cdk -- destroy GoldenPathDemoStack \
+  --profile "$AWS_PROFILE" \
+  -c allowedIngressCidr="$ALLOWED_INGRESS_CIDR" \
+  -c applicationImageReference="$APPLICATION_IMAGE_REFERENCE" \
+  -c applicationServiceVersion="$APPLICATION_SERVICE_VERSION"
+```
+
 The CIDR is still required because `destroy` executes the CDK app before it
 selects the stack. Read the prompt carefully and confirm only
 `GoldenPathDemoStack`.
+
+Destroying the workload stack removes the ECS service and task definition but
+does not delete an imported application ECR repository or its images. That
+repository belongs to platform foundation infrastructure so rollback artifacts
+cannot disappear during routine runtime teardown.
 
 CDK waits for CloudFormation, but this explicit waiter is useful after a
 terminal disconnect (or use tmux):
@@ -867,6 +1038,13 @@ The bootstrap S3 bucket and ECR repository can retain synthesized assets and
 Docker layers after `GoldenPathDemoStack` is gone. They normally have small
 storage cost compared with the running ALB, task, and interface endpoints.
 
+An imported application repository is separate from both
+`GoldenPathDemoStack` and `CDKToolkit`. Neither `cdk destroy` nor CDK bootstrap
+garbage collection empties or deletes it. Its lifecycle policy belongs to the
+future platform-foundation stack. A deliberate full-lab purge may remove
+disposable mirrors after checking rollback and retention requirements; routine
+cost teardown must leave them intact.
+
 The repository's CDK CLI supports garbage collection. First perform a read-only
 inventory:
 
@@ -922,6 +1100,7 @@ Region:
 - Amazon Managed Grafana workspace usage and the assigned Admin active-user
   license;
 - ECR and S3 storage for CDK assets;
+- ECR storage for retained application candidates when ECR mode is used;
 - normal data transfer charges.
 
 The S3 gateway endpoint has no hourly endpoint charge. The stack deliberately
@@ -932,8 +1111,10 @@ After `cdk destroy`, the Fargate task, ALB, AMP and Grafana workspaces, Grafana
 access prefix list and role, VPC endpoints, VPC, and all four log groups should
 be gone. No emitter remains to publish new metric datapoints. The bootstrap
 asset storage remains until its lifecycle rules or `cdk gc` remove unused
-objects and images. X-Ray traces and historical CloudWatch metric datapoints
-follow their service retention instead of CloudFormation lifecycle.
+objects and images. Imported application images remain until their separate
+repository lifecycle policy or an explicit full-lab purge removes them. X-Ray
+traces and historical CloudWatch metric datapoints follow their service
+retention instead of CloudFormation lifecycle.
 Organizations and Identity Center also remain because they are account-level
 foundations. Billing data and budget notifications can lag behind resource
 deletion.
@@ -954,10 +1135,38 @@ An error mentioning `/cdk-bootstrap/hnb659fds/version` means the selected
 account/Region does not have the compatible bootstrap stack. Recheck the account
 and Region before running the bootstrap command.
 
+### Application image configuration was rejected
+
+Configuration errors occur before deployment and name the invalid CDK context
+key. Check that:
+
+- `applicationImageReference` and `applicationServiceVersion` are either both
+  omitted or both supplied;
+- the image reference is a complete private ECR URI with `@sha256:` followed by
+  exactly 64 hexadecimal characters, not a mutable tag;
+- the registry account and Region match the account and Region selected by the
+  AWS profile.
+
+This validation is offline. Do not try to fix it by adding AWS credentials or
+broadening IAM permissions.
+
+### ECR application image could not be pulled
+
+Successful synthesis does not prove that a repository or digest exists. Run
+the earlier `aws ecr describe-images` check, then inspect ECS service events for
+`CannotPullContainerError`. Confirm that the selected digest still exists, the
+execution role has repository pull permissions, and the task can reach the ECR
+API, ECR Docker, and S3 endpoints from the selected isolated subnet.
+
+Do not grant ECR access to the application task role or add a NAT Gateway as a
+workaround. The ECS agent pulls the image with the execution role through the
+existing private endpoints.
+
 ### Docker build or publish failed
 
-Run `docker info` and confirm the daemon is available. Then rerun `deploy`; CDK
-can reuse successfully published assets.
+Run `docker info` and confirm the daemon is available. Local mode builds both
+the application and ADOT assets; ECR application mode still builds ADOT. Then
+rerun `deploy`; CDK can reuse successfully published assets.
 
 ### Service did not stabilize
 
