@@ -27,6 +27,7 @@ current delivery order, start with
 | [`ecs-adot-xray-tracing.md`](ecs-adot-xray-tracing.md) | issue #37 / PR #39 | Repo-owned ADOT sidecar and X-Ray trace path |
 | [`ecs-adot-managed-metrics-grafana.md`](ecs-adot-managed-metrics-grafana.md) | issue #38 / PRs #41-#43 | CloudWatch, AMP, ECS metrics, Managed Grafana, and dashboard |
 | [`platform-repository-organization-options.md`](platform-repository-organization-options.md) | issue #44 | Repository organization, service-boundary, contract-gate, and adoption backlog decision |
+| [`cdk-application-image-artifact-contract.md`](cdk-application-image-artifact-contract.md) | issue #50 / PRs #52-#54 plus closure docs | Backward-compatible local/private-ECR image boundary that removes service-source coupling from external deployments |
 | [`hybrid-teaching-mode-skill.md`](hybrid-teaching-mode-skill.md) | repository AI workflow | Learning-first AI implementation contract with engineer-owned practice |
 
 ## Maintenance Rules

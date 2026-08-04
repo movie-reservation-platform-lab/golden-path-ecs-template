@@ -759,3 +759,89 @@ paths.
 CDK remains colocated with the TypeScript platform repo temporarily. That is a
 known transitional state, not the final boundary. The exit criterion is an
 explicit deployable image artifact contract from issue #50.
+
+---
+
+## ADR 022: Deploy Immutable Service Artifacts By Digest
+
+Status: accepted.
+
+### Decision
+
+Separate service artifact publication from infrastructure deployment.
+
+Each service repository owns building, testing, and publishing its immutable
+candidate container image. Publishing a candidate does not deploy it. A private
+promotion workflow later mirrors the exact OCI artifact into an existing
+per-service private ECR repository in the target AWS account and Region without
+rebuilding it.
+
+The digest-pinned private ECR reference is the canonical application deployment
+identity. A human-readable service version travels beside it for logs and
+OpenTelemetry resource metadata, but that version is not a substitute for the
+digest. A future environment manifest records the selected component digests
+and source revisions and becomes the reviewed input to deployment.
+
+Platform foundation infrastructure owns the durable ECR repositories and their
+retention policy. Workload stacks import those repositories and consume a
+selected digest; they do not create, populate, empty, or delete them. Routine
+workload teardown therefore cannot remove artifacts needed for rollback.
+
+The current CDK application-image boundary supports two modes:
+
+- `local-docker-asset` remains the backward-compatible default for local
+  learning and the still-colocated TypeScript service;
+- `ecr-image` accepts a complete, same-account, same-Region private ECR URI
+  pinned by SHA-256 digest plus an opaque service version.
+
+The repository-owned ADOT collector remains a CDK Docker image asset in both
+modes. The initial external-image contract deliberately excludes cross-account,
+cross-Region, public ECR, and generic registry pulls.
+
+This decision evolves ADR 015 without weakening its trust boundary. Public CI
+remains credential-free; the target promotion model changes from rebuilding an
+approved source commit during deployment to promoting an already-built,
+immutable candidate and deploying its mirrored digest. Source revision remains
+required provenance.
+
+This also satisfies the technical prerequisite recorded by ADR 021: CDK can now
+deploy the application without reading the service source tree. Extracting CDK
+into a dedicated infrastructure repository is still separate follow-up work,
+not an automatic consequence of this ADR.
+
+### Reason
+
+The platform is becoming polyglot and multi-repository. TypeScript, Python, and
+Rust services need independent build pipelines and release cadences, while
+infrastructure needs a stable input that does not require cloning every service
+repository.
+
+Promoting the same immutable image avoids a class of build drift where staging
+or production receives different bytes from the candidate that passed service
+CI. Digest selection also makes one-component deployment and rollback explicit:
+infrastructure can change the selected application artifact without changing
+the service source or rebuilding it.
+
+Keeping repository lifecycle in foundation infrastructure prevents disposable
+workload stacks from deleting shared or rollback-critical artifacts. It also
+preserves the cheap lab teardown path: ECS, ALB, endpoints, observability, and
+logs can be removed while small artifact-storage costs remain controlled by a
+separate retention or full-lab-purge policy.
+
+### Tradeoff
+
+The platform now has a transitional dual path. Local mode is convenient but
+still couples a deployment to the monorepo checkout; ECR mode removes that
+coupling but requires an existing repository, a mirrored digest, and explicit
+service-version metadata.
+
+CDK validates the ECR reference and deployment target offline. Successful
+synthesis does not prove that the repository or digest exists, so the private
+promotion workflow and operator runbook must verify artifact availability
+before deployment.
+
+Long-lived repositories add storage, retention, provenance, scanning, and
+garbage-collection responsibilities. Those are foundation concerns and must be
+handled deliberately; `cdk destroy` of a workload is not an artifact purge.
+The public candidate registry, mirroring implementation, environment manifests,
+quality gates, and first real mirrored deployment remain follow-up work.
