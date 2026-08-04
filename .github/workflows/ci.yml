@@ -154,8 +154,13 @@ jobs:
 
       # Temporary CI-only context until ADR 015's private promotion workflow
       # owns real environment configuration and AWS deployment authority.
-      - name: Synthesize CDK app
-        run: npm -w ecs-infra run cdk -- synth -c allowedIngressCidr=203.0.113.10/32
+      - name: Synthesize local application image path
+        run: npm -w ecs-infra run synth:local-contract
+
+      # This account, repository, all-zero digest, and cdk.json AZ context are
+      # intentionally fake. --no-lookups makes any unexpected AWS call fail.
+      - name: Synthesize ECR application image contract
+        run: npm -w ecs-infra run synth:ecr-contract
 
   web:
     name: web
